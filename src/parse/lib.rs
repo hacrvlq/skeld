@@ -1,0 +1,408 @@
+use std::{
+	borrow::Cow,
+	fmt::Display,
+	fs,
+	path::{Path, PathBuf},
+};
+
+use codespan_reporting::{
+	diagnostic::{self, Label as DiagLabel},
+	files as codespan_files,
+};
+use toml_span::{value::ValueInner as TomlInnerValue, Span};
+
+use super::Result;
+
+pub use codespan_reporting::diagnostic::Severity;
+pub type Diagnostic = diagnostic::Diagnostic<usize>;
+pub type FileDatabase = codespan_files::SimpleFiles<String, String>;
+
+// trait implementors should save current config value
+// and update it with each 'try_eat' when appropiate
+pub trait ConfigOption {
+	// should return true if key is consumed and false otherwise
+	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> Result<bool>;
+}
+
+// =================================================================================================
+// Wrappers around 'toml_span' adding file location info
+// =================================================================================================
+pub fn parse_toml_file<'v>(
+	path: impl AsRef<Path>,
+	file_database: &mut FileDatabase,
+	// file contents and root toml value need to outlive the return value
+	outlivers: &'v mut (Option<String>, Option<toml_span::Value<'v>>),
+) -> Result<TomlTable<'v>> {
+	let path = path.as_ref();
+	assert!(path.is_absolute());
+
+	outlivers.0 = Some(
+		fs::read_to_string(path)
+			.map_err(|err| format!("Failed to read file `{}`: {err}", path.display()))?,
+	);
+	let file_contents = outlivers.0.as_ref().unwrap();
+
+	let file_id =
+		FileId(file_database.add(path.to_string_lossy().to_string(), file_contents.clone()));
+
+	outlivers.1 = Some(toml_span::parse(file_contents).map_err(|err| err.to_diagnostic(file_id.0))?);
+	let parsed_contents = outlivers.1.as_ref().unwrap();
+	let table = parsed_contents.as_table().unwrap();
+
+	Ok(TomlTable {
+		table,
+		loc: Location {
+			span: parsed_contents.span,
+			file: file_id,
+		},
+	})
+}
+#[derive(Clone)]
+pub struct TomlKey<'a> {
+	name: Cow<'a, str>,
+	loc: Location,
+}
+impl<'a> TomlKey<'a> {
+	fn from_key(key: &toml_span::value::Key<'a>, file: FileId) -> Self {
+		Self {
+			name: key.name.clone(),
+			loc: Location {
+				file,
+				span: key.span,
+			},
+		}
+	}
+	pub fn name(&self) -> &str {
+		self.name.as_ref()
+	}
+	pub fn loc(&self) -> &Location {
+		&self.loc
+	}
+}
+pub struct TomlValue<'a> {
+	value: &'a TomlInnerValue<'a>,
+	loc: Location,
+}
+impl<'a> TomlValue<'a> {
+	fn from_value(value: &'a toml_span::Value<'a>, file: FileId) -> Self {
+		Self {
+			value: value.as_ref(),
+			loc: Location {
+				file,
+				span: value.span,
+			},
+		}
+	}
+	pub fn loc(&self) -> &Location {
+		&self.loc
+	}
+	pub fn as_bool(&self) -> Result<bool> {
+		self.value.as_bool().ok_or_else(|| {
+			diagnostics::wrong_type(self, TomlInnerValue::Boolean(Default::default())).into()
+		})
+	}
+	pub fn as_str(&self) -> Result<&str> {
+		self.value.as_str().ok_or_else(|| {
+			diagnostics::wrong_type(self, TomlInnerValue::String(Default::default())).into()
+		})
+	}
+	pub fn as_array(&self) -> Result<Vec<TomlValue<'_>>> {
+		Ok(
+			self
+				.value
+				.as_array()
+				.ok_or_else(|| diagnostics::wrong_type(self, TomlInnerValue::Array(Default::default())))?
+				.iter()
+				.map(|value| TomlValue::from_value(value, self.loc().file))
+				.collect(),
+		)
+	}
+	pub fn as_table(&self) -> Result<TomlTable<'_>> {
+		let table = self
+			.value
+			.as_table()
+			.ok_or_else(|| diagnostics::wrong_type(self, TomlInnerValue::Table(Default::default())))?;
+		Ok(TomlTable {
+			table,
+			loc: self.loc().clone(),
+		})
+	}
+}
+pub struct TomlTable<'a> {
+	table: &'a toml_span::value::Table<'a>,
+	loc: Location,
+}
+impl<'a> TomlTable<'a> {
+	pub fn iter(&self) -> impl Iterator<Item = (TomlKey<'a>, TomlValue<'a>)> {
+		let file_id = self.loc().file;
+		self.table.iter().map(move |(key, value)| {
+			(
+				TomlKey::from_key(key, file_id),
+				TomlValue::from_value(value, file_id),
+			)
+		})
+	}
+	pub fn loc(&self) -> &Location {
+		&self.loc
+	}
+}
+
+#[derive(Clone)]
+pub struct Location {
+	pub file: FileId,
+	pub span: Span,
+}
+impl Location {
+	pub fn get_primary_label(&self) -> DiagLabel<usize> {
+		DiagLabel::primary(self.file.0, self.span)
+	}
+	pub fn get_secondary_label(&self) -> DiagLabel<usize> {
+		DiagLabel::secondary(self.file.0, self.span)
+	}
+}
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct FileId(usize);
+
+// ====================================================================================================
+// Basic config options
+// ====================================================================================================
+#[derive(Clone)]
+pub struct BoolOption {
+	name: String,
+	value: Option<(bool, Location)>,
+}
+impl BoolOption {
+	pub fn new(name: &str) -> Self {
+		Self {
+			name: name.to_string(),
+			value: None,
+		}
+	}
+	pub fn get_value(self) -> Option<bool> {
+		self.value.map(|(value, _)| value)
+	}
+}
+impl ConfigOption for BoolOption {
+	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> Result<bool> {
+		if key.name != self.name {
+			return Ok(false);
+		}
+
+		let value = value.as_bool()?;
+		match &self.value {
+			Some(prev_val) if prev_val.0 != value => {
+				return Err(diagnostics::multiple_definitions(&prev_val.1, key.loc(), &self.name).into());
+			}
+			_ => (),
+		}
+		self.value = Some((value, key.loc().clone()));
+		Ok(true)
+	}
+}
+
+#[derive(Clone)]
+pub struct PathBufOption {
+	name: String,
+	value: Option<(PathBuf, Location)>,
+	canonicalization: fn(&str) -> CanonicalizationResult<PathBuf>,
+}
+impl PathBufOption {
+	pub fn new(name: &str, canonicalization: fn(&str) -> CanonicalizationResult<PathBuf>) -> Self {
+		Self {
+			name: name.to_string(),
+			value: None,
+			canonicalization,
+		}
+	}
+	pub fn get_value(self) -> Option<PathBuf> {
+		self.value.map(|v| v.0)
+	}
+}
+impl ConfigOption for PathBufOption {
+	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> Result<bool> {
+		if key.name != self.name {
+			return Ok(false);
+		}
+		if let Some((_, prev_loc)) = &self.value {
+			return Err(diagnostics::multiple_definitions(key.loc(), prev_loc, &self.name).into());
+		}
+
+		let raw_value = value.as_str()?;
+
+		let canonicalized_value = (self.canonicalization)(raw_value)
+			.map_err(|err| diagnostics::failed_canonicalization(value, &err))?;
+		self.value = Some((canonicalized_value, key.loc().clone()));
+		Ok(true)
+	}
+}
+#[derive(Clone)]
+pub struct StringOption {
+	name: String,
+	value: Option<(String, Location)>,
+	canonicalization: fn(&str) -> CanonicalizationResult<String>,
+}
+impl StringOption {
+	pub fn new(name: &str) -> Self {
+		Self::new_with_canonicalization(name, |str| Ok(str.to_string()))
+	}
+	pub fn new_with_canonicalization(
+		name: &str,
+		canonicalization: fn(&str) -> CanonicalizationResult<String>,
+	) -> Self {
+		Self {
+			name: name.to_string(),
+			value: None,
+			canonicalization,
+		}
+	}
+	pub fn get_value(self) -> Option<String> {
+		self.value.map(|v| v.0)
+	}
+}
+impl ConfigOption for StringOption {
+	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> Result<bool> {
+		if key.name != self.name {
+			return Ok(false);
+		}
+		if let Some((_, prev_loc)) = &self.value {
+			return Err(diagnostics::multiple_definitions(key.loc(), prev_loc, &self.name).into());
+		}
+
+		let raw_value = value.as_str()?;
+
+		let canonicalized_value = (self.canonicalization)(raw_value)
+			.map_err(|err| diagnostics::failed_canonicalization(value, &err))?;
+		self.value = Some((canonicalized_value, key.loc().clone()));
+		Ok(true)
+	}
+}
+type CanonicalizationResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+#[derive(Clone)]
+pub struct ArrayOption<V> {
+	name: String,
+	// value: Option<(_, key location, value location)>
+	value: Option<(Vec<V>, Location, Location)>,
+	parse_entry_fn: fn(&TomlValue) -> Result<V>,
+	mergable: bool,
+}
+impl<V> ArrayOption<V> {
+	pub fn new(name: &str, mergable: bool, parse_entry_fn: fn(&TomlValue) -> Result<V>) -> Self {
+		Self {
+			name: name.to_string(),
+			value: None,
+			parse_entry_fn,
+			mergable,
+		}
+	}
+	pub fn get_value(self) -> Option<Vec<V>> {
+		self.value.map(|(v, _, _)| v)
+	}
+	pub fn get_value_with_loc(self) -> Option<(Vec<V>, Location)> {
+		self.value.map(|(v, _, loc)| (v, loc))
+	}
+}
+impl<V> ConfigOption for ArrayOption<V> {
+	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> Result<bool> {
+		if key.name != self.name {
+			return Ok(false);
+		}
+		let array = value.as_array()?;
+
+		match &self.value {
+			Some((_, prev_loc, _)) if !self.mergable => {
+				return Err(diagnostics::multiple_definitions(key.loc(), prev_loc, &self.name).into());
+			}
+			_ => (),
+		}
+		let (values, _, _) =
+			self
+				.value
+				.get_or_insert((Vec::new(), key.loc().clone(), value.loc().clone()));
+
+		for inner_value in array {
+			values.push((self.parse_entry_fn)(&inner_value)?);
+		}
+
+		Ok(true)
+	}
+}
+
+macro_rules! parse_table {
+	($table:expr => [$($opt:expr),*]) => {'blk: {
+		use $crate::parse::lib::*;
+		for (key, value) in $table.iter() {
+			let mut eaten = false;
+			$(
+				let wants_to_eat = match $opt.try_eat(&key, &value) {
+					Ok(val) => val,
+					Err(err) => break 'blk Err(err),
+				};
+				if !eaten && wants_to_eat {
+					eaten = true;
+				} else if eaten && wants_to_eat {
+					panic!("multiple config options want to eat the same key");
+				}
+			)*
+			if !eaten {
+				break 'blk Result::Err(diagnostics::unknown_option(&key).into());
+			}
+		}
+		Ok(())
+	}};
+}
+pub(crate) use parse_table;
+
+pub mod diagnostics {
+	use super::*;
+
+	pub fn failed_canonicalization(value: &TomlValue, err: &impl Display) -> Diagnostic {
+		Diagnostic::new(Severity::Error)
+			.with_message("failed to parse string")
+			.with_labels(vec![value
+				.loc()
+				.get_primary_label()
+				.with_message(format!("{err}"))])
+	}
+	pub fn missing_option(loc: &Location, missing: &str) -> Diagnostic {
+		let label = loc.get_primary_label();
+		Diagnostic::new(Severity::Error)
+			.with_message(format!("missing config option `{missing}`"))
+			.with_labels(vec![label])
+	}
+	pub fn unknown_option(key: &TomlKey) -> Diagnostic {
+		Diagnostic::new(Severity::Error)
+			.with_message("unknown config option")
+			.with_labels(vec![key.loc().get_primary_label()])
+	}
+	pub fn multiple_definitions(loc1: &Location, loc2: &Location, name: &str) -> Diagnostic {
+		let label1 = loc2.get_primary_label().with_message("redefined here");
+		let label2 = loc1
+			.get_secondary_label()
+			.with_message("first defined here");
+		Diagnostic::new(Severity::Error)
+			.with_message(format!("`{name}` is defined multiple times"))
+			.with_labels(vec![label1, label2])
+	}
+	pub fn wrong_type(got: &TomlValue, expected: TomlInnerValue) -> Diagnostic {
+		let label = got.loc().get_primary_label().with_message(format!(
+			"expected `{}` found `{}`",
+			toml_type_to_string(&expected),
+			toml_type_to_string(got.value)
+		));
+		Diagnostic::new(Severity::Error)
+			.with_message("unexpected type")
+			.with_labels(vec![label])
+	}
+	fn toml_type_to_string(val: &TomlInnerValue) -> String {
+		match val {
+			TomlInnerValue::String(_) => "String",
+			TomlInnerValue::Integer(_) => "Integer",
+			TomlInnerValue::Float(_) => "Float",
+			TomlInnerValue::Boolean(_) => "Boolean",
+			TomlInnerValue::Array(_) => "Array",
+			TomlInnerValue::Table(_) => "Table",
+		}
+		.to_string()
+	}
+}

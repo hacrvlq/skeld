@@ -1,0 +1,6 @@
+.*
+!.gitignore
+!.rustfmt.toml
+!.github/
+
+/target
