@@ -1,6 +1,7 @@
 use std::{
 	error::Error,
 	io::{self, Write},
+	ops::RangeInclusive,
 };
 
 use crossterm::{
@@ -14,7 +15,7 @@ use crossterm::{
 pub use crossterm::style::Color;
 
 #[derive(Clone)]
-pub struct UiContent<U> {
+pub struct TuiData<U> {
 	pub banner: String,
 	pub sections: Vec<Section<U>>,
 	pub colorscheme: Colorscheme,
@@ -43,7 +44,7 @@ pub struct Button<U> {
 pub enum UiError {
 	#[display(fmt = "Error: skeld can only be used in a tty")]
 	NoTty,
-	#[display(fmt = "IO Error while displaying UI: {_0}")]
+	#[display(fmt = "IO Error while displaying TUI: {_0}")]
 	IoError(io::Error),
 }
 impl Error for UiError {}
@@ -52,7 +53,7 @@ pub enum UserSelection<U> {
 	Button(U),
 	ControlC,
 }
-pub fn start<U: Clone>(data: &UiContent<U>) -> Result<UserSelection<U>, UiError> {
+pub fn run<U: Clone>(data: &TuiData<U>) -> Result<UserSelection<U>, UiError> {
 	if !io::stdout().is_tty() {
 		return Err(UiError::NoTty);
 	}
@@ -76,12 +77,16 @@ pub fn start<U: Clone>(data: &UiContent<U>) -> Result<UserSelection<U>, UiError>
 
 	let mut state = State {
 		data,
+		rendered_content: RenderedContent::new(data)?,
 		selected_button: 0,
 		acc_pressed_keys: String::new(),
 	};
 
 	loop {
-		state.render()?;
+		if terminal::size()? != state.rendered_content.terminal_size {
+			state.rendered_content = RenderedContent::new(state.data)?;
+		}
+		state.rendered_content.display(state.selected_button)?;
 
 		//TODO: add mouse support
 		match event::read()? {
@@ -100,9 +105,9 @@ pub fn start<U: Clone>(data: &UiContent<U>) -> Result<UserSelection<U>, UiError>
 				..
 			}) => {
 				let choosen_button_action = state.handle_key_press(&code);
-				if let Some(data) = choosen_button_action {
+				if let Some(action) = choosen_button_action {
 					restore_terminal()?;
-					return Ok(UserSelection::Button(data));
+					return Ok(UserSelection::Button(action));
 				}
 			}
 			_ => (),
@@ -111,7 +116,8 @@ pub fn start<U: Clone>(data: &UiContent<U>) -> Result<UserSelection<U>, UiError>
 }
 
 struct State<'a, U> {
-	data: &'a UiContent<U>,
+	data: &'a TuiData<U>,
+	rendered_content: RenderedContent,
 	selected_button: usize,
 	// accumulated pressed keys
 	// (never cleared, only the end is checked for a match)
@@ -119,32 +125,6 @@ struct State<'a, U> {
 }
 
 impl<U: Clone> State<'_, U> {
-	fn render(&self) -> io::Result<()> {
-		assert!(terminal::is_raw_mode_enabled()?);
-
-		let mut renderer = CenteredTextRenderer::new();
-
-		renderer.push_text(&self.data.banner, self.data.colorscheme.banner);
-		renderer.push_text("\n\n\n", Color::Reset);
-
-		let mut possible_cursor_positions = Vec::new();
-		for section in &self.data.sections {
-			renderer.push_text(&section.heading, self.data.colorscheme.heading);
-			renderer.push_text("\n\n", Color::Reset);
-			for button in &section.buttons {
-				possible_cursor_positions.push((1, renderer.get_line_count() as u16));
-				button.render(&self.data.colorscheme, &mut renderer);
-			}
-			renderer.push_text("\n\n", Color::Reset);
-		}
-
-		let cursor_pos = *possible_cursor_positions
-			.get(self.selected_button)
-			.unwrap_or(&(u16::MAX, 0));
-		renderer.render(cursor_pos)?;
-
-		Ok(())
-	}
 	fn handle_key_press(&mut self, keycode: &KeyCode) -> Option<U> {
 		match keycode {
 			KeyCode::Enter => {
@@ -185,31 +165,112 @@ impl<U: Clone> State<'_, U> {
 	}
 }
 
-impl<U> Button<U> {
-	fn render(&self, colorscheme: &Colorscheme, renderer: &mut CenteredTextRenderer) {
-		renderer.push_text("[", colorscheme.neutral);
-		renderer.push_text(&self.keybind, colorscheme.keybind);
-		renderer.push_text("] ", colorscheme.neutral);
-		renderer.push_text(&self.text, colorscheme.button_label);
-		renderer.push_text("\n", Color::Reset);
+// styled and layouted text of the tui
+struct RenderedContent {
+	// terminal size at the time of creation
+	terminal_size: (u16, u16),
+	text: String,
+	left_padding: u16,
+	// buttons_clickable_area: Vec<(line, row_range)>
+	buttons_clickable_area: Vec<(u16, RangeInclusive<u16>)>,
+}
+impl RenderedContent {
+	fn new<U>(content: &TuiData<U>) -> io::Result<Self> {
+		let mut text = TextBuilder::new();
+
+		text.push_text(&content.banner, content.colorscheme.banner);
+		text.push_text("\n\n\n", Color::Reset);
+
+		let mut buttons_clickable_area = Vec::new();
+		for section in &content.sections {
+			text.push_text(&section.heading, content.colorscheme.heading);
+			text.push_text("\n\n", Color::Reset);
+			for button in &section.buttons {
+				buttons_clickable_area.push((text.line_count as u16, 0..=button.keybind.len() as u16 + 1));
+				button.render(&content.colorscheme, &mut text);
+			}
+			text.push_text("\n\n", Color::Reset);
+		}
+
+		let terminal_size = terminal::size()?;
+		let left_padding =
+			((terminal_size.0 as f32 - text.max_text_width as f32).max(0.0) * 0.5) as u16;
+
+		let buttons_clickable_area = buttons_clickable_area
+			.into_iter()
+			.map(|(line, range)| {
+				(
+					line,
+					*range.start() + left_padding..=*range.end() + left_padding,
+				)
+			})
+			.collect();
+
+		Ok(Self {
+			terminal_size,
+			left_padding,
+			text: text.text,
+			buttons_clickable_area,
+		})
+	}
+	fn display(&self, selected_button: usize) -> io::Result<()> {
+		assert!(terminal::is_raw_mode_enabled()?);
+
+		let mut stdout = io::stdout();
+
+		stdout.queue(terminal::Clear(terminal::ClearType::All))?;
+		for (i, line) in self
+			.text
+			.lines()
+			.enumerate()
+			.take(self.terminal_size.1 as usize)
+		{
+			stdout
+				.queue(cursor::MoveTo(self.left_padding, i as u16))?
+				.queue(style::Print(&line))?;
+		}
+
+		let cursor_pos = self
+			.buttons_clickable_area
+			.get(selected_button)
+			.map(|(line, range)| (*range.start() + 1, *line))
+			.unwrap_or((u16::MAX, u16::MAX));
+		if cursor_pos.0 < self.terminal_size.0 && cursor_pos.1 < self.terminal_size.1 {
+			stdout.queue(cursor::Show)?;
+			stdout.queue(cursor::MoveTo(cursor_pos.0, cursor_pos.1))?;
+		} else {
+			stdout.queue(cursor::Hide)?;
+		}
+		stdout.flush()?;
+
+		Ok(())
 	}
 }
 
-struct CenteredTextRenderer {
+impl<U> Button<U> {
+	fn render(&self, colorscheme: &Colorscheme, out: &mut TextBuilder) {
+		out.push_text("[", colorscheme.neutral);
+		out.push_text(&self.keybind, colorscheme.keybind);
+		out.push_text("] ", colorscheme.neutral);
+		out.push_text(&self.text, colorscheme.button_label);
+		out.push_text("\n", Color::Reset);
+	}
+}
+
+// record the maximum width of the text
+// that may be styled with ansi escape sequences
+struct TextBuilder {
 	text: String,
 	max_text_width: usize,
 	line_count: usize,
 }
-impl CenteredTextRenderer {
+impl TextBuilder {
 	fn new() -> Self {
 		Self {
 			text: String::new(),
 			max_text_width: 0,
 			line_count: 0,
 		}
-	}
-	fn get_line_count(&self) -> usize {
-		self.line_count
 	}
 	fn push_text(&mut self, text: &str, color: Color) {
 		use style::Stylize;
@@ -219,29 +280,5 @@ impl CenteredTextRenderer {
 			.max_text_width
 			.max(text.lines().map(|line| line.len()).max().unwrap_or(0));
 		self.line_count += text.chars().filter(|ch| ch == &'\n').count();
-	}
-	fn render(&self, cursor_pos: (u16, u16)) -> std::io::Result<()> {
-		let mut stdout = io::stdout();
-
-		let terminal_size = terminal::size()?;
-		let leftmost_pos =
-			((terminal_size.0 as f32 - self.max_text_width as f32).max(0.0) * 0.5) as u16;
-
-		stdout.queue(terminal::Clear(terminal::ClearType::All))?;
-		for (i, line) in self.text.lines().enumerate().take(terminal_size.1 as usize) {
-			stdout
-				.queue(cursor::MoveTo(leftmost_pos, i as u16))?
-				.queue(style::Print(&line))?;
-		}
-
-		if cursor_pos.0 < terminal_size.0 && cursor_pos.1 < terminal_size.1 {
-			stdout.queue(cursor::Show)?;
-			stdout.queue(cursor::MoveTo(leftmost_pos + cursor_pos.0, cursor_pos.1))?;
-		} else {
-			stdout.queue(cursor::Hide)?;
-		}
-		stdout.flush()?;
-
-		Ok(())
 	}
 }

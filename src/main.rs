@@ -2,13 +2,13 @@ mod action;
 mod parse;
 mod project;
 mod sandbox;
-mod ui;
+mod tui;
 
 use std::{error::Error, process::ExitCode};
 
 use action::Action;
 use parse::ParseContext;
-use ui::{UiContent, UserSelection};
+use tui::{TuiData, UserSelection};
 
 // TODO: cli arguments
 fn main() -> ExitCode {
@@ -37,7 +37,7 @@ fn try_main() -> Result<ExitCode, Box<dyn Error>> {
 
 	let config = unwrap_config_error!(parse_ctx.get_global_config());
 
-	let commands = config.commands.clone().into_iter().map(|data| ui::Button {
+	let commands = config.commands.clone().into_iter().map(|data| tui::Button {
 		keybind: data.keybind,
 		text: data.name,
 		action: Action::Run(data.command),
@@ -45,7 +45,7 @@ fn try_main() -> Result<ExitCode, Box<dyn Error>> {
 
 	let bookmarks = unwrap_config_error!(parse_ctx.get_bookmarks())
 		.into_iter()
-		.map(|data| ui::Button {
+		.map(|data| tui::Button {
 			keybind: data.keybind,
 			text: data.name,
 			action: Action::OpenProject(data.project_data),
@@ -54,22 +54,22 @@ fn try_main() -> Result<ExitCode, Box<dyn Error>> {
 	let projects = unwrap_config_error!(parse_ctx.get_projects())
 		.into_iter()
 		.enumerate()
-		.map(|(i, data)| ui::Button {
+		.map(|(i, data)| tui::Button {
 			keybind: i.to_string(),
 			text: data.name,
 			action: Action::OpenProject(data.project_data),
 		});
 
 	let sections = [
-		ui::Section {
+		tui::Section {
 			heading: "Commands".to_string(),
 			buttons: commands.collect(),
 		},
-		ui::Section {
+		tui::Section {
 			heading: "Bookmarks".to_string(),
 			buttons: bookmarks.collect(),
 		},
-		ui::Section {
+		tui::Section {
 			heading: "Projects".to_string(),
 			buttons: projects.collect(),
 		},
@@ -77,13 +77,13 @@ fn try_main() -> Result<ExitCode, Box<dyn Error>> {
 	.into_iter()
 	.filter(|section| !section.buttons.is_empty());
 
-	let ui_content = UiContent {
+	let tui_data = TuiData {
 		banner: config.banner.clone(),
 		colorscheme: config.colorscheme.clone(),
 		sections: sections.collect(),
 	};
 
-	let action = ui::start(&ui_content)?;
+	let action = tui::run(&tui_data)?;
 	match action {
 		UserSelection::ControlC => Ok(ExitCode::SUCCESS),
 		UserSelection::Button(action) => Ok(unwrap_config_error!(

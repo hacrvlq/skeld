@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::{action::Command, ui};
+use crate::{action::Command, tui};
 
 use super::{
 	lib::{self as parse_lib, diagnostics, ArrayOption, BoolOption, StringOption, TomlValue},
@@ -12,7 +12,7 @@ use super::{
 //TODO: make banner and colorscheme configurable
 pub struct GlobalConfig {
 	pub banner: String,
-	pub colorscheme: ui::Colorscheme,
+	pub colorscheme: tui::Colorscheme,
 	pub commands: Vec<CommandData>,
 	pub global_config_data: project_data::PrelimParseState,
 }
@@ -42,12 +42,12 @@ const DEFAULT_BANNER: &str = r#"
 \/\____/ \ \_\ \_\ \____\/\____\ \_____\
  \/___/   \/_/\/_/\/____/\/____/\/____ /
 "#;
-const DEFAULT_COLORSCHEME: ui::Colorscheme = ui::Colorscheme {
-	neutral: ui::Color::Reset,
-	banner: ui::Color::Yellow,
-	heading: ui::Color::DarkYellow,
-	keybind: ui::Color::DarkCyan,
-	button_label: ui::Color::DarkGrey,
+const DEFAULT_COLORSCHEME: tui::Colorscheme = tui::Colorscheme {
+	neutral: tui::Color::Reset,
+	banner: tui::Color::Yellow,
+	heading: tui::Color::DarkYellow,
+	keybind: tui::Color::DarkCyan,
+	button_label: tui::Color::DarkGrey,
 };
 
 pub fn parse_config_file(path: impl AsRef<Path>, ctx: &mut ParseContext) -> Result<GlobalConfig> {
