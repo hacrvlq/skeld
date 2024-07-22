@@ -2,11 +2,15 @@ use std::{
 	error::Error,
 	io::{self, Write},
 	ops::RangeInclusive,
+	time,
 };
 
 use crossterm::{
 	cursor,
-	event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers},
+	event::{
+		self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent,
+		MouseEventKind,
+	},
 	style, terminal,
 	tty::IsTty as _,
 	QueueableCommand as _,
@@ -61,6 +65,7 @@ pub fn run<U: Clone>(data: &TuiData<U>) -> Result<UserSelection<U>, UiError> {
 	terminal::enable_raw_mode()?;
 	io::stdout()
 		.queue(terminal::EnterAlternateScreen)?
+		.queue(event::EnableMouseCapture)?
 		.queue(terminal::DisableLineWrap)?
 		.queue(cursor::SavePosition)?
 		.flush()?;
@@ -68,6 +73,7 @@ pub fn run<U: Clone>(data: &TuiData<U>) -> Result<UserSelection<U>, UiError> {
 		terminal::disable_raw_mode()?;
 		io::stdout()
 			.queue(terminal::LeaveAlternateScreen)?
+			.queue(event::DisableMouseCapture)?
 			.queue(terminal::EnableLineWrap)?
 			.queue(cursor::RestorePosition)?
 			.queue(cursor::Show)?
@@ -80,6 +86,7 @@ pub fn run<U: Clone>(data: &TuiData<U>) -> Result<UserSelection<U>, UiError> {
 		rendered_content: RenderedContent::new(data)?,
 		selected_button: 0,
 		acc_pressed_keys: String::new(),
+		prev_mouse_press: None,
 	};
 
 	loop {
@@ -88,7 +95,6 @@ pub fn run<U: Clone>(data: &TuiData<U>) -> Result<UserSelection<U>, UiError> {
 		}
 		state.rendered_content.display(state.selected_button)?;
 
-		//TODO: add mouse support
 		match event::read()? {
 			Event::Key(KeyEvent {
 				kind: KeyEventKind::Press,
@@ -99,18 +105,13 @@ pub fn run<U: Clone>(data: &TuiData<U>) -> Result<UserSelection<U>, UiError> {
 				restore_terminal()?;
 				return Ok(UserSelection::ControlC);
 			}
-			Event::Key(KeyEvent {
-				kind: KeyEventKind::Press | KeyEventKind::Repeat,
-				code,
-				..
-			}) => {
-				let choosen_button_action = state.handle_key_press(&code);
+			event => {
+				let choosen_button_action = state.handle_event(&event);
 				if let Some(action) = choosen_button_action {
 					restore_terminal()?;
 					return Ok(UserSelection::Button(action));
 				}
 			}
-			_ => (),
 		}
 	}
 }
@@ -122,9 +123,27 @@ struct State<'a, U> {
 	// accumulated pressed keys
 	// (never cleared, only the end is checked for a match)
 	acc_pressed_keys: String,
+	// prev_mouse_press: Option<(pressed button, _)>
+	prev_mouse_press: Option<(usize, time::Instant)>,
 }
 
 impl<U: Clone> State<'_, U> {
+	fn handle_event(&mut self, event: &Event) -> Option<U> {
+		match event {
+			Event::Key(KeyEvent {
+				kind: KeyEventKind::Press | KeyEventKind::Repeat,
+				code,
+				..
+			}) => self.handle_key_press(code),
+			Event::Mouse(MouseEvent {
+				kind: MouseEventKind::Down(MouseButton::Left),
+				column,
+				row,
+				..
+			}) => self.handle_mouse_press((*column, *row)),
+			_ => None,
+		}
+	}
 	fn handle_key_press(&mut self, keycode: &KeyCode) -> Option<U> {
 		match keycode {
 			KeyCode::Enter => {
@@ -156,6 +175,36 @@ impl<U: Clone> State<'_, U> {
 			.max_by_key(|button| button.keybind.len());
 		pressed_button.map(|button| button.action.clone())
 	}
+
+	fn handle_mouse_press(&mut self, pos: (u16, u16)) -> Option<U> {
+		let now = time::Instant::now();
+
+		let Some(pressed_button) = self
+			.rendered_content
+			.buttons_clickable_area
+			.iter()
+			.position(|(line, col_range)| line == &pos.1 && col_range.contains(&pos.0))
+		else {
+			self.prev_mouse_press = None;
+			return None;
+		};
+
+		const DOUBLE_CLICK_TIME: f64 = 0.5;
+		if self
+			.prev_mouse_press
+			.as_ref()
+			.is_some_and(|(prev_button, prev_time)| {
+				prev_button == &pressed_button && (now - *prev_time).as_secs_f64() < DOUBLE_CLICK_TIME
+			}) {
+			self.prev_mouse_press = None;
+			Some(self.buttons().nth(pressed_button).unwrap().action.clone())
+		} else {
+			self.selected_button = pressed_button;
+			self.prev_mouse_press = Some((pressed_button, now));
+			None
+		}
+	}
+
 	fn buttons(&self) -> impl Iterator<Item = &Button<U>> {
 		self
 			.data
