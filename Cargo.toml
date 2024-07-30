@@ -3,6 +3,7 @@ name = "skeld"
 version = "0.1.0"
 edition = "2021"
 
+authors = ["hacrvlq <hacrvlq@proton.me"]
 description = "a tui tool for opening projects in a restricted sandbox to prevent supply chain attacks such as typesquatting"
 keywords = ["sandbox", "security", "project", "tui", "terminal-interface"]
 categories = ["command-line-interface"]
