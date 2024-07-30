@@ -1,8 +1,10 @@
 use std::{
 	borrow::Cow,
+	cmp::PartialEq,
 	fmt::Display,
 	fs,
 	path::{Path, PathBuf},
+	rc::Rc,
 };
 
 use codespan_reporting::{
@@ -166,29 +168,33 @@ pub struct FileId(usize);
 // ====================================================================================================
 // Basic config options
 // ====================================================================================================
+// helper config option that eats only a specific key using a specified parse function
 #[derive(Clone)]
-pub struct BoolOption {
+pub struct BaseOption<T> {
+	#[allow(clippy::type_complexity)]
+	parse_fn: Rc<dyn Fn(&TomlValue) -> Result<T>>,
 	name: String,
-	value: Option<(bool, Location)>,
+	value: Option<(T, Location)>,
 }
-impl BoolOption {
-	pub fn new(name: &str) -> Self {
+impl<T> BaseOption<T> {
+	pub fn new(name: &str, parse_fn: impl Fn(&TomlValue) -> Result<T> + 'static) -> Self {
 		Self {
+			parse_fn: Rc::new(parse_fn),
 			name: name.to_string(),
 			value: None,
 		}
 	}
-	pub fn get_value(self) -> Option<bool> {
+	pub fn get_value(self) -> Option<T> {
 		self.value.map(|(value, _)| value)
 	}
 }
-impl ConfigOption for BoolOption {
+impl<T: PartialEq> ConfigOption for BaseOption<T> {
 	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> Result<bool> {
 		if key.name != self.name {
 			return Ok(false);
 		}
 
-		let value = value.as_bool()?;
+		let value = (self.parse_fn)(value)?;
 		match &self.value {
 			Some(prev_val) if prev_val.0 != value => {
 				return Err(diagnostics::multiple_definitions(&prev_val.1, key.loc(), &self.name).into());
@@ -201,79 +207,66 @@ impl ConfigOption for BoolOption {
 }
 
 #[derive(Clone)]
-pub struct PathBufOption {
-	name: String,
-	value: Option<(PathBuf, Location)>,
-	canonicalization: fn(&str) -> CanonicalizationResult<PathBuf>,
+pub struct BoolOption(BaseOption<bool>);
+impl BoolOption {
+	pub fn new(name: &str) -> Self {
+		Self(BaseOption::new(name, |value| value.as_bool()))
+	}
+	pub fn get_value(self) -> Option<bool> {
+		self.0.get_value()
+	}
 }
+impl ConfigOption for BoolOption {
+	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> Result<bool> {
+		self.0.try_eat(key, value)
+	}
+}
+
+#[derive(Clone)]
+pub struct PathBufOption(BaseOption<PathBuf>);
 impl PathBufOption {
-	pub fn new(name: &str, canonicalization: fn(&str) -> CanonicalizationResult<PathBuf>) -> Self {
-		Self {
-			name: name.to_string(),
-			value: None,
-			canonicalization,
-		}
+	pub fn new(
+		name: &str,
+		canonicalization: impl Fn(&str) -> CanonicalizationResult<PathBuf> + 'static,
+	) -> Self {
+		Self(BaseOption::new(name, move |value| {
+			let raw_value = value.as_str()?;
+			(canonicalization)(raw_value)
+				.map_err(|err| diagnostics::failed_canonicalization(value, &err).into())
+		}))
 	}
 	pub fn get_value(self) -> Option<PathBuf> {
-		self.value.map(|v| v.0)
+		self.0.get_value()
 	}
 }
 impl ConfigOption for PathBufOption {
 	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> Result<bool> {
-		if key.name != self.name {
-			return Ok(false);
-		}
-		if let Some((_, prev_loc)) = &self.value {
-			return Err(diagnostics::multiple_definitions(key.loc(), prev_loc, &self.name).into());
-		}
-
-		let raw_value = value.as_str()?;
-
-		let canonicalized_value = (self.canonicalization)(raw_value)
-			.map_err(|err| diagnostics::failed_canonicalization(value, &err))?;
-		self.value = Some((canonicalized_value, key.loc().clone()));
-		Ok(true)
+		self.0.try_eat(key, value)
 	}
 }
 #[derive(Clone)]
-pub struct StringOption {
-	name: String,
-	value: Option<(String, Location)>,
-	canonicalization: fn(&str) -> CanonicalizationResult<String>,
-}
+pub struct StringOption(BaseOption<String>);
 impl StringOption {
 	pub fn new(name: &str) -> Self {
 		Self::new_with_canonicalization(name, |str| Ok(str.to_string()))
 	}
 	pub fn new_with_canonicalization(
 		name: &str,
-		canonicalization: fn(&str) -> CanonicalizationResult<String>,
+		canonicalization: impl Fn(&str) -> CanonicalizationResult<String> + 'static,
 	) -> Self {
-		Self {
-			name: name.to_string(),
-			value: None,
-			canonicalization,
-		}
+		Self(BaseOption::new(name, move |value| {
+			let raw_value = value.as_str()?;
+			(canonicalization)(raw_value)
+				.map_err(|err| diagnostics::failed_canonicalization(value, &err).into())
+		}))
 	}
 	pub fn get_value(self) -> Option<String> {
-		self.value.map(|v| v.0)
+		self.0.get_value()
 	}
 }
 impl ConfigOption for StringOption {
 	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> Result<bool> {
-		if key.name != self.name {
-			return Ok(false);
-		}
-		if let Some((_, prev_loc)) = &self.value {
-			return Err(diagnostics::multiple_definitions(key.loc(), prev_loc, &self.name).into());
-		}
-
-		let raw_value = value.as_str()?;
-
-		let canonicalized_value = (self.canonicalization)(raw_value)
-			.map_err(|err| diagnostics::failed_canonicalization(value, &err))?;
-		self.value = Some((canonicalized_value, key.loc().clone()));
-		Ok(true)
+		self.0.try_eat(key, value)
 	}
 }
 type CanonicalizationResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
