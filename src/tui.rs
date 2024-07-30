@@ -145,6 +145,10 @@ impl<U: Clone> State<'_, U> {
 		}
 	}
 	fn handle_key_press(&mut self, keycode: &KeyCode) -> Option<U> {
+		if let KeyCode::Char(ch) = keycode {
+			self.acc_pressed_keys.push(*ch);
+		}
+
 		match keycode {
 			KeyCode::Enter => {
 				return self
@@ -159,14 +163,10 @@ impl<U: Clone> State<'_, U> {
 			KeyCode::Char('k') | event::KeyCode::Up => {
 				self.selected_button = self.selected_button.saturating_sub(1);
 			}
-			KeyCode::Char(ch) => {
-				self.acc_pressed_keys.push(*ch);
-				return self.check_for_keybind_match();
-			}
 			_ => (),
-		}
+		};
 
-		None
+		self.check_for_keybind_match()
 	}
 	fn check_for_keybind_match(&self) -> Option<U> {
 		let pressed_button = self
