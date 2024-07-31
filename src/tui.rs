@@ -24,7 +24,7 @@ pub struct TuiData<U> {
 	pub sections: Vec<Section<U>>,
 	pub colorscheme: Colorscheme,
 }
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Colorscheme {
 	pub neutral: Color,
 	pub banner: Color,

@@ -11,11 +11,12 @@ use codespan_reporting::{
 	diagnostic::{self, Label as DiagLabel},
 	files as codespan_files,
 };
-use toml_span::{value::ValueInner as TomlInnerValue, Span};
+use toml_span::Span;
 
 use super::Result;
 
 pub use codespan_reporting::diagnostic::Severity;
+pub use toml_span::value::ValueInner as TomlInnerValue;
 pub type Diagnostic = diagnostic::Diagnostic<usize>;
 pub type FileDatabase = codespan_files::SimpleFiles<String, String>;
 
@@ -100,12 +101,17 @@ impl<'a> TomlValue<'a> {
 	}
 	pub fn as_bool(&self) -> Result<bool> {
 		self.value.as_bool().ok_or_else(|| {
-			diagnostics::wrong_type(self, TomlInnerValue::Boolean(Default::default())).into()
+			diagnostics::wrong_type(self, &[TomlInnerValue::Boolean(Default::default())]).into()
+		})
+	}
+	pub fn as_int(&self) -> Result<i64> {
+		self.value.as_integer().ok_or_else(|| {
+			diagnostics::wrong_type(self, &[TomlInnerValue::Integer(Default::default())]).into()
 		})
 	}
 	pub fn as_str(&self) -> Result<&str> {
 		self.value.as_str().ok_or_else(|| {
-			diagnostics::wrong_type(self, TomlInnerValue::String(Default::default())).into()
+			diagnostics::wrong_type(self, &[TomlInnerValue::String(Default::default())]).into()
 		})
 	}
 	pub fn as_array(&self) -> Result<Vec<TomlValue<'_>>> {
@@ -113,7 +119,7 @@ impl<'a> TomlValue<'a> {
 			self
 				.value
 				.as_array()
-				.ok_or_else(|| diagnostics::wrong_type(self, TomlInnerValue::Array(Default::default())))?
+				.ok_or_else(|| diagnostics::wrong_type(self, &[TomlInnerValue::Array(Default::default())]))?
 				.iter()
 				.map(|value| TomlValue::from_value(value, self.loc().file))
 				.collect(),
@@ -123,7 +129,7 @@ impl<'a> TomlValue<'a> {
 		let table = self
 			.value
 			.as_table()
-			.ok_or_else(|| diagnostics::wrong_type(self, TomlInnerValue::Table(Default::default())))?;
+			.ok_or_else(|| diagnostics::wrong_type(self, &[TomlInnerValue::Table(Default::default())]))?;
 		Ok(TomlTable {
 			table,
 			loc: self.loc().clone(),
@@ -377,10 +383,16 @@ pub mod diagnostics {
 			.with_message(format!("`{name}` is defined multiple times"))
 			.with_labels(vec![label1, label2])
 	}
-	pub fn wrong_type(got: &TomlValue, expected: TomlInnerValue) -> Diagnostic {
+	pub fn wrong_type(got: &TomlValue, expected: &[TomlInnerValue]) -> Diagnostic {
+		assert!(!expected.is_empty());
+		let expected_types_str = expected
+			.iter()
+			.map(|ty| format!("`{}`", toml_type_to_string(ty)))
+			.collect::<Vec<_>>()
+			.join(" or ");
+
 		let label = got.loc().get_primary_label().with_message(format!(
-			"expected `{}` found `{}`",
-			toml_type_to_string(&expected),
+			"expected {expected_types_str}, found `{}`",
 			toml_type_to_string(got.value)
 		));
 		Diagnostic::new(Severity::Error)
