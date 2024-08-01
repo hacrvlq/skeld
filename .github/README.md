@@ -17,9 +17,9 @@ Note that only Linux is supported.
 
 ### Releases
 ```sh
-wget https://github.com/hacrvlq/skeld/releases/download/v0.1.0/skeld-0.1.0-x86_64
-chmod +x skeld-0.1.0-x86_64
-./skeld-0.1.0-x86_64
+wget https://github.com/hacrvlq/skeld/releases/download/v0.1.0/skeld-0.2.0-x86_64
+chmod +x skeld-0.2.0-x86_64
+./skeld-0.2.0-x86_64
 ```
 
 ### crates.io (requires [cargo](https://www.rust-lang.org/tools/install))
@@ -40,6 +40,7 @@ $ ./target/release/skeld
 ```sh
 skeld
 # Use Up/Down/J/K to select and Enter to confirm
+# The mouse is also supported
 ```
 > [!IMPORTANT]
 > Without any configuration, `skeld` displays a blank screen. Read further to create Projects/Bookmarks/Commands.
@@ -112,6 +113,26 @@ Wherever a path is expected, the following placeholders can be used:
 ### Configuration
 The configuration is located at `$XDG_CONFIG_HOME/config.toml` (fallback `~/.config/skeld`). The following options are supported:
 ```toml
+# banner shown at the top
+# example was generated with figlet using larry3d font
+banner = '''
+                               __
+  ___      __    ___   __  __ /\_\    ___ ___
+/' _ `\  /'__`\ / __`\/\ \/\ \\/\ \ /' __` __`\
+/\ \/\ \/\  __//\ \_\ \ \ \_/ |\ \ \/\ \/\ \/\ \
+\ \_\ \_\ \____\ \____/\ \___/  \ \_\ \_\ \_\ \_\
+ \/_/\/_/\/____/\/___/  \/__/    \/_/\/_/\/_/\/_/
+'''
+
+[colorscheme]
+# colors can be specified as hex color codes
+neutral = "#DCD7BA"
+# or as ansi color codes (see https://en.wikipedia.org/wiki/ANSI_escape_code#8-bit)
+banner = 3
+heading = "#C0A36E"
+label = "#727169"
+keybind = "#6A9589"
+
 [[commands]]
 name = "<edit>"
 keybind = "e"
