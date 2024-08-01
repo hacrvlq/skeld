@@ -134,10 +134,7 @@ impl PrelimParseState {
 		let whitelist_envvars = if whitelist_all_envvars {
 			EnvVarWhitelist::All
 		} else {
-			let os_string_list = whitelist_envvars
-				.into_iter()
-				.map(|str| str.into())
-				.collect();
+			let os_string_list = whitelist_envvars.into_iter().map(Into::into).collect();
 			EnvVarWhitelist::List(os_string_list)
 		};
 		Ok(ProjectData {

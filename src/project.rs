@@ -55,11 +55,7 @@ impl EditorCommand {
 				.map(|arg| arg.replace("$(FILE)", &initial_file).into())
 				.collect()
 		} else {
-			self
-				.cmd_without_file
-				.into_iter()
-				.map(|path| path.into())
-				.collect()
+			self.cmd_without_file.into_iter().map(Into::into).collect()
 		};
 
 		Command {
@@ -101,5 +97,5 @@ fn wrap_cmd_with_nix_shell(cmd: Command) -> Result<Command, Box<dyn Error>> {
 //TODO: proper escaping
 fn bash_string_escape(str: &str) -> String {
 	let escaped_str = str.replace('\\', "\\\\").replace('\'', "\\'");
-	format!("$'{}'", escaped_str)
+	format!("$'{escaped_str}'")
 }

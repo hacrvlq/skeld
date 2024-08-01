@@ -16,7 +16,7 @@ pub struct GlobalConfig {
 	pub banner: String,
 	pub colorscheme: tui::Colorscheme,
 	pub commands: Vec<CommandData>,
-	pub global_config_data: project_data::PrelimParseState,
+	pub global_project_data: project_data::PrelimParseState,
 }
 #[derive(Clone)]
 pub struct CommandData {
@@ -30,12 +30,12 @@ impl Default for GlobalConfig {
 			banner: DEFAULT_BANNER.to_string(),
 			colorscheme: DEFAULT_COLORSCHEME,
 			commands: Vec::new(),
-			global_config_data: project_data::PrelimParseState::empty(),
+			global_project_data: project_data::PrelimParseState::empty(),
 		}
 	}
 }
 // generated with FIGlet using the larry3d font
-const DEFAULT_BANNER: &str = r#"
+const DEFAULT_BANNER: &str = r"
        __              ___       __
       /\ \            /\_ \     /\ \
   ____\ \ \/'\      __\//\ \    \_\ \
@@ -43,7 +43,7 @@ const DEFAULT_BANNER: &str = r#"
 /\__, `\\ \ \\'\ /\  __/ \_\ \_/\ \_\ \
 \/\____/ \ \_\ \_\ \____\/\____\ \_____\
  \/___/   \/_/\/_/\/____/\/____/\/____ /
-"#;
+";
 const DEFAULT_COLORSCHEME: tui::Colorscheme = tui::Colorscheme {
 	neutral: tui::Color::Reset,
 	banner: tui::Color::Yellow,
@@ -66,7 +66,7 @@ pub fn parse_config_file(path: impl AsRef<Path>, ctx: &mut ParseContext) -> Resu
 
 	Ok(GlobalConfig {
 		commands: commands.get_value().unwrap_or_default(),
-		global_config_data: global_project_data.get_value(),
+		global_project_data: global_project_data.get_value(),
 		colorscheme: colorscheme.get_value().unwrap_or(DEFAULT_COLORSCHEME),
 		banner: banner.get_value().unwrap_or(DEFAULT_BANNER.to_string()),
 	})

@@ -204,7 +204,7 @@ impl<U: Clone> VirtualFSTree<U> {
 			children: self
 				.children
 				.into_iter()
-				.map(|child| child.remove_user_data())
+				.map(Self::remove_user_data)
 				.collect(),
 			entry: self.entry.map(|(ty, _)| (ty, ())),
 		}
@@ -351,8 +351,7 @@ impl VirtualFSEntryType {
 			VirtualFSEntryType::AllowDev => Some(2),
 			VirtualFSEntryType::ReadWrite => Some(1),
 			VirtualFSEntryType::ReadOnly => Some(0),
-			VirtualFSEntryType::Tmpfs => None,
-			VirtualFSEntryType::Symlink => None,
+			VirtualFSEntryType::Tmpfs | VirtualFSEntryType::Symlink => None,
 		}
 	}
 	fn should_be_leaf(&self) -> bool {
@@ -381,7 +380,7 @@ fn get_bpf_program() -> BpfProgram {
 		vec![SeccompRule::new(vec![SeccompCondition::new(
 			1,
 			SeccompCmpArgLen::Dword,
-			SeccompCmpOp::MaskedEq(0xFFFFFFFF),
+			SeccompCmpOp::MaskedEq(0xFFFF_FFFF),
 			libc::TIOCSTI,
 		)
 		.unwrap()])

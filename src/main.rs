@@ -87,7 +87,7 @@ fn try_main() -> Result<ExitCode, Box<dyn Error>> {
 	match action {
 		UserSelection::ControlC => Ok(ExitCode::SUCCESS),
 		UserSelection::Button(action) => Ok(unwrap_config_error!(
-			action.execute(config.global_config_data, &mut parse_ctx)
+			action.execute(config.global_project_data, &mut parse_ctx)
 		)),
 	}
 }

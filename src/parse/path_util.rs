@@ -117,7 +117,7 @@ fn resolve_envvar_expr(expr: &str) -> Result<String> {
 		return Err(Error::Illformed);
 	}
 	let env_var_name = parts[0];
-	let env_var_alt = parts.get(1).map(|v| v.to_string());
+	let env_var_alt = parts.get(1).map(ToString::to_string);
 
 	match env::var(env_var_name) {
 		Ok(value) => Ok(value),

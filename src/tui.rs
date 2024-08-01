@@ -134,7 +134,7 @@ impl<U: Clone> State<'_, U> {
 				kind: KeyEventKind::Press | KeyEventKind::Repeat,
 				code,
 				..
-			}) => self.handle_key_press(code),
+			}) => self.handle_key_press(*code),
 			Event::Mouse(MouseEvent {
 				kind: MouseEventKind::Down(MouseButton::Left),
 				column,
@@ -144,9 +144,9 @@ impl<U: Clone> State<'_, U> {
 			_ => None,
 		}
 	}
-	fn handle_key_press(&mut self, keycode: &KeyCode) -> Option<U> {
+	fn handle_key_press(&mut self, keycode: KeyCode) -> Option<U> {
 		if let KeyCode::Char(ch) = keycode {
-			self.acc_pressed_keys.push(*ch);
+			self.acc_pressed_keys.push(ch);
 		}
 
 		match keycode {
@@ -327,7 +327,7 @@ impl TextBuilder {
 		self.text.push_str(&text.with(color).to_string());
 		self.max_text_width = self
 			.max_text_width
-			.max(text.lines().map(|line| line.len()).max().unwrap_or(0));
+			.max(text.lines().map(str::len).max().unwrap_or(0));
 		self.line_count += text.chars().filter(|ch| ch == &'\n').count();
 	}
 }
