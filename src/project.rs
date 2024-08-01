@@ -74,10 +74,12 @@ fn wrap_cmd_with_nix_shell(cmd: Command) -> Result<Command, Box<dyn Error>> {
 		.cmd
 		.iter()
 		.map(|os_str| {
-			os_str.to_str().ok_or(format!(
-				"argument of command is invalid UTF-8 (`{}`)",
-				os_str.to_string_lossy()
-			))
+			os_str.to_str().ok_or_else(|| {
+				format!(
+					"argument of command is invalid UTF-8 (`{}`)",
+					os_str.to_string_lossy()
+				)
+			})
 		})
 		.collect::<Result<Vec<_>, String>>()?
 		.into_iter()

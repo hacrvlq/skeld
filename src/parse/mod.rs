@@ -82,7 +82,7 @@ impl ParseContext {
 			projects.append(&mut self.read_projects_from_dir(projects_root_dir)?);
 		}
 		let projects = sort_vec_and_check_dup(projects, |v| v.name.clone())
-			.ok_or("Found multiple projects with the same name".to_string())?;
+			.ok_or_else(|| "Found multiple projects with the same name".to_string())?;
 		Ok(projects)
 	}
 	fn read_projects_from_dir(
@@ -112,7 +112,7 @@ impl ParseContext {
 			bookmarks.append(&mut self.read_bookmarks_from_dir(bookmarks_dir)?);
 		}
 		let bookmarks = sort_vec_and_check_dup(bookmarks, |v| v.keybind.clone())
-			.ok_or("Found multiple bookmarks with the same key binding".to_string())?;
+			.ok_or_else(|| "Found multiple bookmarks with the same key binding".to_string())?;
 		Ok(bookmarks)
 	}
 	fn read_bookmarks_from_dir(
