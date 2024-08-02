@@ -15,13 +15,20 @@ Note that only Linux is supported.
 > [!IMPORTANT]
 > [Bubblewrap](https://github.com/containers/bubblewrap) must be available in `PATH` as it is used internally to create sandboxes
 
+### Releases
+```sh
+wget https://github.com/hacrvlq/skeld/releases/download/v0.1.0/skeld-0.1.0-x86_64
+chmod +x skeld-0.1.0-x86_64
+./skeld-0.1.0-x86_64
+```
+
 ### crates.io (requires [cargo](https://www.rust-lang.org/tools/install))
 ```sh
 cargo install skeld
 # make sure that the cargo bin path (by default ~/.cargo/bin) is included in PATH
 ```
 
-### Manual (requires [a rust compiler](https://www.rust-lang.org/tools/install))
+### Building from source (requires [the rust compiler](https://www.rust-lang.org/tools/install))
 ```console
 $ git clone --depth=1 https://github.com/hacrvlq/skeld
 $ cd skeld
