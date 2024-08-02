@@ -10,8 +10,12 @@ use action::Action;
 use parse::ParseContext;
 use tui::{TuiData, UserSelection};
 
-// TODO: cli arguments
 fn main() -> ExitCode {
+	clap::command!()
+		.name("Skeld")
+		.about("Open projects in a restricted sandbox")
+		.get_matches();
+
 	match try_main() {
 		Ok(code) => code,
 		Err(err) => {
