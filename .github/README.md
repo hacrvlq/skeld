@@ -57,6 +57,8 @@ project-dir = "..."
 initial-file = "..."
 # automatically open project in nix-shell if 'shell.nix' or 'default.nix' exist
 auto-nixshell = true # Default: false
+# open project without a sandbox
+no-sandbox = true # Default: false
 
 # whitelist paths allowing device access
 whitelists-dev = [ "..." ]

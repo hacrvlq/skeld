@@ -159,6 +159,33 @@ fn convert_exit_status_to_code(status: ExitStatus) -> ExitCode {
 	}
 }
 
+impl Command {
+	// run command without a sandbox
+	pub fn run(&self) -> Result<ExitCode, Box<dyn Error>> {
+		assert!(!self.cmd.is_empty());
+
+		if self.detach {
+			//TODO: prevents error messages from being displayed
+			unistd::daemon(false, false).map_err(|err| format!("Failed to detach process: {err}"))?;
+		};
+
+		let mut child = OsCommand::new(&self.cmd[0])
+			.args(self.cmd.iter().skip(1))
+			.current_dir(&self.working_dir)
+			.spawn()
+			.map_err(|err| format!("Failed to execute command: {err}"))?;
+
+		if self.detach {
+			Ok(ExitCode::SUCCESS)
+		} else {
+			let child_status = child
+				.wait()
+				.map_err(|err| format!("Failed to wait for command: {err}"))?;
+			Ok(convert_exit_status_to_code(child_status))
+		}
+	}
+}
+
 // path tree of all virtual-fs-entries with the following normalization:
 // 1. All subpaths of a path can only have higher permissions.
 //    If this is not the case, the tree is silently normalized.

@@ -13,6 +13,7 @@ pub struct ProjectData {
 	pub editor: EditorCommand,
 	pub auto_nixshell: bool,
 	pub sandbox_params: SandboxParameters,
+	pub disable_sandbox: bool,
 }
 #[derive(Clone, Debug)]
 pub struct EditorCommand {
@@ -32,18 +33,21 @@ impl ProjectData {
 			(),
 		);
 
-		let sandbox_cmd = self
+		let project_cmd = self
 			.editor
 			.get_command(self.project_dir.clone(), self.initial_file);
 		let use_nix_shell = self.auto_nixshell && detect_nix_shell_file(&self.project_dir);
-		let sandbox_cmd = if use_nix_shell {
-			wrap_cmd_with_nix_shell(sandbox_cmd)?
+		let project_cmd = if use_nix_shell {
+			wrap_cmd_with_nix_shell(project_cmd)?
 		} else {
-			sandbox_cmd
+			project_cmd
 		};
 
-		let exit_code = self.sandbox_params.run_cmd(sandbox_cmd)?;
-		Ok(exit_code)
+		if self.disable_sandbox {
+			project_cmd.run()
+		} else {
+			self.sandbox_params.run_cmd(project_cmd)
+		}
 	}
 }
 impl EditorCommand {

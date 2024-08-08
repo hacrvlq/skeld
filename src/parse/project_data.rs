@@ -99,6 +99,7 @@ pub struct PrelimParseState {
 	whitelists_envvars: ArrayOption<String>,
 	whitelist_all_envvars: BoolOption,
 	auto_nixshell: BoolOption,
+	disable_sandbox: BoolOption,
 
 	parsed_files: Vec<PathBuf>,
 }
@@ -117,6 +118,7 @@ impl PrelimParseState {
 			}),
 			whitelist_all_envvars: BoolOption::new("whitelist-all-envvars"),
 			auto_nixshell: BoolOption::new("auto-nixshell"),
+			disable_sandbox: BoolOption::new("no-sandbox"),
 
 			parsed_files: Vec::new(),
 		}
@@ -130,6 +132,7 @@ impl PrelimParseState {
 		let whitelist_all_envvars = self.whitelist_all_envvars.get_value().unwrap_or_default();
 		let whitelist_envvars = self.whitelists_envvars.get_value().unwrap_or_default();
 		let auto_nixshell = self.auto_nixshell.get_value().unwrap_or_default();
+		let disable_sandbox = self.disable_sandbox.get_value().unwrap_or_default();
 
 		let whitelist_envvars = if whitelist_all_envvars {
 			EnvVarWhitelist::All
@@ -140,6 +143,7 @@ impl PrelimParseState {
 		Ok(ProjectData {
 			project_dir,
 			auto_nixshell,
+			disable_sandbox,
 			initial_file,
 			editor,
 			sandbox_params: SandboxParameters {
@@ -177,7 +181,8 @@ impl PrelimParseState {
 			self.virtual_fs,
 			self.whitelists_envvars,
 			self.whitelist_all_envvars,
-			self.auto_nixshell
+			self.auto_nixshell,
+			self.disable_sandbox
 		])?;
 
 		for include_path in include_option.get_value().unwrap_or_default() {
