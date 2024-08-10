@@ -30,9 +30,9 @@ impl Error {
 	}
 }
 impl std::error::Error for Error {}
-pub type Result<T> = core::result::Result<T, Error>;
+type ModResult<T> = Result<T, Error>;
 
-pub fn canonicalize_path(path: impl Into<String>) -> Result<PathBuf> {
+pub fn canonicalize_path(path: impl Into<String>) -> ModResult<PathBuf> {
 	let path = PathBuf::from(substitute_placeholder(path, false)?);
 	if path.is_relative() {
 		return Err(Error::RelativePath);
@@ -41,7 +41,7 @@ pub fn canonicalize_path(path: impl Into<String>) -> Result<PathBuf> {
 }
 
 //TODO: nested expressions
-pub fn substitute_placeholder(str: impl Into<String>, allow_file_var: bool) -> Result<String> {
+pub fn substitute_placeholder(str: impl Into<String>, allow_file_var: bool) -> ModResult<String> {
 	let mut str = str.into();
 
 	#[derive(Debug)]
@@ -57,7 +57,7 @@ pub fn substitute_placeholder(str: impl Into<String>, allow_file_var: bool) -> R
 			}
 		}
 	}
-	fn find_next_placeholder(str: &str) -> Result<Option<Placeholder>> {
+	fn find_next_placeholder(str: &str) -> ModResult<Option<Placeholder>> {
 		let square_start_seq_idx = str.find("$[");
 		let round_start_seq_idx = str.find("$(");
 		let search_square_placeholder = match (square_start_seq_idx, round_start_seq_idx) {
@@ -111,7 +111,7 @@ pub fn substitute_placeholder(str: impl Into<String>, allow_file_var: bool) -> R
 	let str = str.replace('~', &get_home_dir()?);
 	Ok(str)
 }
-fn resolve_envvar_expr(expr: &str) -> Result<String> {
+fn resolve_envvar_expr(expr: &str) -> ModResult<String> {
 	let parts = expr.split(':').collect::<Vec<_>>();
 	if parts.is_empty() || parts.len() > 2 {
 		return Err(Error::Illformed);
@@ -128,7 +128,7 @@ fn resolve_envvar_expr(expr: &str) -> Result<String> {
 		}),
 	}
 }
-fn resolve_variable_expr(expr: &str, allow_file_var: bool) -> Result<Option<String>> {
+fn resolve_variable_expr(expr: &str, allow_file_var: bool) -> ModResult<Option<String>> {
 	Ok(match expr {
 		"CONFIG" => Some(env::var("XDG_CONFIG_HOME").unwrap_or("~/.config/".to_string())),
 		"CACHE" => Some(env::var("XDG_CACHE_HOME").unwrap_or("~/.cache/".to_string())),
@@ -139,7 +139,7 @@ fn resolve_variable_expr(expr: &str, allow_file_var: bool) -> Result<Option<Stri
 	})
 }
 
-pub fn canonicalize_include_path(path: impl Into<String>) -> Result<PathBuf> {
+pub fn canonicalize_include_path(path: impl Into<String>) -> ModResult<PathBuf> {
 	let path = PathBuf::from(substitute_placeholder(path.into(), false)?);
 
 	if path.is_absolute() {
@@ -167,13 +167,13 @@ pub fn canonicalize_include_path(path: impl Into<String>) -> Result<PathBuf> {
 	}
 }
 
-pub fn get_data_root_paths() -> Result<Vec<PathBuf>> {
+pub fn get_data_root_paths() -> ModResult<Vec<PathBuf>> {
 	let config_dir = canonicalize_path("$(CONFIG)/skeld")?;
 	let data_dir = canonicalize_path("$(DATA)/skeld")?;
 	Ok(vec![config_dir, data_dir])
 }
 
-fn get_home_dir() -> Result<String> {
+fn get_home_dir() -> ModResult<String> {
 	if let Ok(home_dir) = env::var("HOME") {
 		return Ok(home_dir);
 	}

@@ -5,7 +5,7 @@ use super::{
 		self as parse_lib, diagnostics, ArrayOption, BoolOption, PathBufOption, StringOption, TomlKey,
 		TomlTable, TomlValue,
 	},
-	path_util, ParseContext, Result,
+	path_util, ParseContext, ModResult,
 };
 use crate::{
 	project::{EditorCommand, ProjectData},
@@ -18,7 +18,7 @@ pub enum ProjectDataFuture {
 	Bookmark(PathBuf),
 }
 impl ProjectDataFuture {
-	pub fn load(self, parse_state: PrelimParseState, ctx: &mut ParseContext) -> Result<ProjectData> {
+	pub fn load(self, parse_state: PrelimParseState, ctx: &mut ParseContext) -> ModResult<ProjectData> {
 		match self {
 			Self::Project(path) => Self::parse_project_data_file(path, parse_state, ctx),
 			Self::Bookmark(path) => Self::parse_bookmark_file_stage2(path, parse_state, ctx),
@@ -28,7 +28,7 @@ impl ProjectDataFuture {
 		path: impl AsRef<Path>,
 		mut parse_state: PrelimParseState,
 		ctx: &mut ParseContext,
-	) -> Result<ProjectData> {
+	) -> ModResult<ProjectData> {
 		let mut outlivers = (None, None);
 		let parsed_contents = parse_lib::parse_toml_file(path, &mut ctx.file_database, &mut outlivers)?;
 		parse_state.parse_table(&parsed_contents, ctx)?;
@@ -42,7 +42,7 @@ impl ProjectDataFuture {
 		path: impl AsRef<Path>,
 		parse_state: PrelimParseState,
 		ctx: &mut ParseContext,
-	) -> Result<ProjectData> {
+	) -> ModResult<ProjectData> {
 		let mut outlivers = (None, None);
 		let parsed_contents =
 			parse_lib::parse_toml_file(path.as_ref(), &mut ctx.file_database, &mut outlivers)?;
@@ -78,7 +78,7 @@ impl<'a> ProjectDataOption<'a> {
 	}
 }
 impl parse_lib::ConfigOption for ProjectDataOption<'_> {
-	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> Result<bool> {
+	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool> {
 		if key.name() != self.name {
 			return Ok(false);
 		}
@@ -124,7 +124,7 @@ impl PrelimParseState {
 		}
 	}
 	// if a required config option is missing, the name of this option is returned as an error
-	fn into_project_data(self) -> core::result::Result<ProjectData, String> {
+	fn into_project_data(self) -> Result<ProjectData, String> {
 		let project_dir = self.project_dir.get_value().ok_or("project-dir")?;
 		let initial_file = self.initial_file.get_value();
 		let editor = self.editor.value.ok_or("editor")?.0;
@@ -152,7 +152,7 @@ impl PrelimParseState {
 			},
 		})
 	}
-	fn parse_path(&mut self, path: impl AsRef<Path>, ctx: &mut ParseContext) -> Result<()> {
+	fn parse_path(&mut self, path: impl AsRef<Path>, ctx: &mut ParseContext) -> ModResult<()> {
 		let path = path.as_ref();
 
 		if self.parsed_files.iter().any(|p| p == path) {
@@ -166,7 +166,7 @@ impl PrelimParseState {
 		self.parse_table(&parsed_contents, ctx)?;
 		Ok(())
 	}
-	fn parse_table(&mut self, table: &TomlTable, ctx: &mut ParseContext) -> Result<()> {
+	fn parse_table(&mut self, table: &TomlTable, ctx: &mut ParseContext) -> ModResult<()> {
 		let mut include_option = ArrayOption::new("include", false, |raw_value| {
 			let value = raw_value.as_str()?;
 			path_util::canonicalize_include_path(value)
@@ -204,7 +204,7 @@ impl VirtualFSOption {
 	}
 }
 impl parse_lib::ConfigOption for VirtualFSOption {
-	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> Result<bool> {
+	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool> {
 		let fs_entry_type;
 		if key.name() == "whitelists-dev" {
 			fs_entry_type = VirtualFSEntryType::AllowDev;
@@ -271,7 +271,7 @@ impl EditorCommandOption {
 	}
 }
 impl parse_lib::ConfigOption for EditorCommandOption {
-	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> Result<bool> {
+	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool> {
 		if key.name() != "editor" {
 			return Ok(false);
 		}

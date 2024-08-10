@@ -13,7 +13,7 @@ use codespan_reporting::{
 };
 use toml_span::Span;
 
-use super::Result;
+use super::ModResult;
 
 pub use codespan_reporting::diagnostic::Severity;
 pub use toml_span::value::ValueInner as TomlInnerValue;
@@ -24,7 +24,7 @@ pub type FileDatabase = codespan_files::SimpleFiles<String, String>;
 // and update it with each 'try_eat' when appropiate
 pub trait ConfigOption {
 	// should return true if key is consumed and false otherwise
-	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> Result<bool>;
+	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool>;
 }
 
 // =================================================================================================
@@ -35,7 +35,7 @@ pub fn parse_toml_file<'v>(
 	file_database: &mut FileDatabase,
 	// file contents and root toml value need to outlive the return value
 	outlivers: &'v mut (Option<String>, Option<toml_span::Value<'v>>),
-) -> Result<TomlTable<'v>> {
+) -> ModResult<TomlTable<'v>> {
 	let path = path.as_ref();
 	assert!(path.is_absolute());
 
@@ -99,22 +99,22 @@ impl<'a> TomlValue<'a> {
 	pub fn loc(&self) -> &Location {
 		&self.loc
 	}
-	pub fn as_bool(&self) -> Result<bool> {
+	pub fn as_bool(&self) -> ModResult<bool> {
 		self.value.as_bool().ok_or_else(|| {
 			diagnostics::wrong_type(self, &[TomlInnerValue::Boolean(Default::default())]).into()
 		})
 	}
-	pub fn as_int(&self) -> Result<i64> {
+	pub fn as_int(&self) -> ModResult<i64> {
 		self.value.as_integer().ok_or_else(|| {
 			diagnostics::wrong_type(self, &[TomlInnerValue::Integer(Default::default())]).into()
 		})
 	}
-	pub fn as_str(&self) -> Result<&str> {
+	pub fn as_str(&self) -> ModResult<&str> {
 		self.value.as_str().ok_or_else(|| {
 			diagnostics::wrong_type(self, &[TomlInnerValue::String(Default::default())]).into()
 		})
 	}
-	pub fn as_array(&self) -> Result<Vec<TomlValue<'_>>> {
+	pub fn as_array(&self) -> ModResult<Vec<TomlValue<'_>>> {
 		Ok(
 			self
 				.value
@@ -125,7 +125,7 @@ impl<'a> TomlValue<'a> {
 				.collect(),
 		)
 	}
-	pub fn as_table(&self) -> Result<TomlTable<'_>> {
+	pub fn as_table(&self) -> ModResult<TomlTable<'_>> {
 		let table = self
 			.value
 			.as_table()
@@ -178,12 +178,12 @@ pub struct FileId(usize);
 #[derive(Clone)]
 pub struct BaseOption<T> {
 	#[allow(clippy::type_complexity)]
-	parse_fn: Rc<dyn Fn(&TomlValue) -> Result<T>>,
+	parse_fn: Rc<dyn Fn(&TomlValue) -> ModResult<T>>,
 	name: String,
 	value: Option<(T, Location)>,
 }
 impl<T> BaseOption<T> {
-	pub fn new(name: &str, parse_fn: impl Fn(&TomlValue) -> Result<T> + 'static) -> Self {
+	pub fn new(name: &str, parse_fn: impl Fn(&TomlValue) -> ModResult<T> + 'static) -> Self {
 		Self {
 			parse_fn: Rc::new(parse_fn),
 			name: name.to_string(),
@@ -195,7 +195,7 @@ impl<T> BaseOption<T> {
 	}
 }
 impl<T: PartialEq> ConfigOption for BaseOption<T> {
-	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> Result<bool> {
+	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool> {
 		if key.name != self.name {
 			return Ok(false);
 		}
@@ -223,7 +223,7 @@ impl BoolOption {
 	}
 }
 impl ConfigOption for BoolOption {
-	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> Result<bool> {
+	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool> {
 		self.0.try_eat(key, value)
 	}
 }
@@ -246,7 +246,7 @@ impl PathBufOption {
 	}
 }
 impl ConfigOption for PathBufOption {
-	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> Result<bool> {
+	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool> {
 		self.0.try_eat(key, value)
 	}
 }
@@ -271,22 +271,22 @@ impl StringOption {
 	}
 }
 impl ConfigOption for StringOption {
-	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> Result<bool> {
+	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool> {
 		self.0.try_eat(key, value)
 	}
 }
-type CanonicalizationResult<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+type CanonicalizationResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 #[derive(Clone)]
 pub struct ArrayOption<V> {
 	name: String,
 	// value: Option<(_, key location, value location)>
 	value: Option<(Vec<V>, Location, Location)>,
-	parse_entry_fn: fn(&TomlValue) -> Result<V>,
+	parse_entry_fn: fn(&TomlValue) -> ModResult<V>,
 	mergable: bool,
 }
 impl<V> ArrayOption<V> {
-	pub fn new(name: &str, mergable: bool, parse_entry_fn: fn(&TomlValue) -> Result<V>) -> Self {
+	pub fn new(name: &str, mergable: bool, parse_entry_fn: fn(&TomlValue) -> ModResult<V>) -> Self {
 		Self {
 			name: name.to_string(),
 			value: None,
@@ -302,7 +302,7 @@ impl<V> ArrayOption<V> {
 	}
 }
 impl<V> ConfigOption for ArrayOption<V> {
-	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> Result<bool> {
+	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool> {
 		if key.name != self.name {
 			return Ok(false);
 		}

@@ -20,7 +20,7 @@ pub enum Error {
 	Diagnostic(lib::Diagnostic),
 	Generic(String),
 }
-pub type Result<T> = core::result::Result<T, Error>;
+type ModResult<T> = Result<T, Error>;
 
 #[derive(Clone)]
 pub struct ProjectButtonData {
@@ -67,7 +67,7 @@ impl ParseContext {
 		}
 	}
 
-	pub fn get_global_config(&mut self) -> Result<config::GlobalConfig> {
+	pub fn get_global_config(&mut self) -> ModResult<config::GlobalConfig> {
 		let global_config_file_path = path_util::canonicalize_path("$(CONFIG)/skeld/config.toml")
 			.map_err(|err| format!("{err}"))?;
 		if !global_config_file_path.exists() {
@@ -75,7 +75,7 @@ impl ParseContext {
 		}
 		config::parse_config_file(&global_config_file_path, self)
 	}
-	pub fn get_projects(&mut self) -> Result<Vec<ProjectButtonData>> {
+	pub fn get_projects(&mut self) -> ModResult<Vec<ProjectButtonData>> {
 		let mut projects = Vec::new();
 		for data_root_dir in path_util::get_data_root_paths().map_err(|err| format!("{err}"))? {
 			let projects_root_dir = data_root_dir.join("projects");
@@ -88,7 +88,7 @@ impl ParseContext {
 	fn read_projects_from_dir(
 		&mut self,
 		projects_dir: impl AsRef<Path>,
-	) -> Result<Vec<ProjectButtonData>> {
+	) -> ModResult<Vec<ProjectButtonData>> {
 		let mut projects = Vec::new();
 		for entry in get_toml_files_from_dir(projects_dir)? {
 			let project_data = ProjectDataFuture::Project(entry.clone());
@@ -105,7 +105,7 @@ impl ParseContext {
 		}
 		Ok(projects)
 	}
-	pub fn get_bookmarks(&mut self) -> Result<Vec<BookmarkData>> {
+	pub fn get_bookmarks(&mut self) -> ModResult<Vec<BookmarkData>> {
 		let mut bookmarks = Vec::new();
 		for data_root_dir in path_util::get_data_root_paths().map_err(|err| format!("{err}"))? {
 			let bookmarks_dir = data_root_dir.join("bookmarks/");
@@ -118,14 +118,14 @@ impl ParseContext {
 	fn read_bookmarks_from_dir(
 		&mut self,
 		bookmarks_dir: impl AsRef<Path>,
-	) -> Result<Vec<BookmarkData>> {
+	) -> ModResult<Vec<BookmarkData>> {
 		let mut bookmarks = Vec::new();
 		for entry in get_toml_files_from_dir(bookmarks_dir)? {
 			bookmarks.push(self.parse_bookmark_file_stage1(entry)?);
 		}
 		Ok(bookmarks)
 	}
-	pub fn parse_bookmark_file_stage1(&mut self, path: impl AsRef<Path>) -> Result<BookmarkData> {
+	pub fn parse_bookmark_file_stage1(&mut self, path: impl AsRef<Path>) -> ModResult<BookmarkData> {
 		let mut outlivers = (None, None);
 		let parsed_contents =
 			parse_lib::parse_toml_file(path.as_ref(), &mut self.file_database, &mut outlivers)?;
@@ -135,7 +135,7 @@ impl ParseContext {
 		// mock the project data option, so there is not an "unknown option" error
 		struct ProjectDataMockOption;
 		impl parse_lib::ConfigOption for ProjectDataMockOption {
-			fn try_eat(&mut self, key: &TomlKey, _: &TomlValue) -> Result<bool> {
+			fn try_eat(&mut self, key: &TomlKey, _: &TomlValue) -> ModResult<bool> {
 				Ok(key.name() == "project")
 			}
 		}
@@ -154,7 +154,7 @@ impl ParseContext {
 	}
 }
 
-fn get_toml_files_from_dir(dir: impl AsRef<Path>) -> Result<Vec<PathBuf>> {
+fn get_toml_files_from_dir(dir: impl AsRef<Path>) -> ModResult<Vec<PathBuf>> {
 	let display_dir = dir.as_ref().display().to_string();
 	let traverse_error_msg = |err| format!("Failed to traverse `{display_dir}: {err}`",).into();
 

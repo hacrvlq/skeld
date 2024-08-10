@@ -9,7 +9,7 @@ use super::{
 	},
 	path_util,
 	project_data::{self, ProjectDataOption},
-	ParseContext, Result,
+	ParseContext, ModResult,
 };
 
 pub struct GlobalConfig {
@@ -52,7 +52,7 @@ const DEFAULT_COLORSCHEME: tui::Colorscheme = tui::Colorscheme {
 	button_label: tui::Color::DarkGrey,
 };
 
-pub fn parse_config_file(path: impl AsRef<Path>, ctx: &mut ParseContext) -> Result<GlobalConfig> {
+pub fn parse_config_file(path: impl AsRef<Path>, ctx: &mut ParseContext) -> ModResult<GlobalConfig> {
 	let mut outlivers = (None, None);
 	let parsed_contents =
 		parse_lib::parse_toml_file(path.as_ref(), &mut ctx.file_database, &mut outlivers)?;
@@ -71,7 +71,7 @@ pub fn parse_config_file(path: impl AsRef<Path>, ctx: &mut ParseContext) -> Resu
 		banner: banner.get_value().unwrap_or(DEFAULT_BANNER.to_string()),
 	})
 }
-fn parse_command_data(value: &TomlValue) -> Result<CommandData> {
+fn parse_command_data(value: &TomlValue) -> ModResult<CommandData> {
 	let table = value.as_table()?;
 
 	let mut name = StringOption::new("name");
@@ -114,11 +114,11 @@ impl ColorschemeOption {
 	}
 }
 impl ConfigOption for ColorschemeOption {
-	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> Result<bool> {
+	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool> {
 		self.0.try_eat(key, value)
 	}
 }
-fn parse_colorscheme(value: &TomlValue) -> Result<tui::Colorscheme> {
+fn parse_colorscheme(value: &TomlValue) -> ModResult<tui::Colorscheme> {
 	let table = value.as_table()?;
 
 	let mut neutral = ColorOption::new("neutral");
@@ -155,11 +155,11 @@ impl ColorOption {
 	}
 }
 impl ConfigOption for ColorOption {
-	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> Result<bool> {
+	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool> {
 		self.0.try_eat(key, value)
 	}
 }
-fn parse_tui_color(value: &TomlValue) -> Result<tui::Color> {
+fn parse_tui_color(value: &TomlValue) -> ModResult<tui::Color> {
 	if let Ok(str) = value.as_str() {
 		parse_hex_color(str).ok_or_else(|| {
 			let label = value
