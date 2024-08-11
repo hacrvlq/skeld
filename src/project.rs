@@ -100,8 +100,6 @@ fn wrap_cmd_with_nix_shell(cmd: Command) -> Result<Command, Box<dyn Error>> {
 		..cmd
 	})
 }
-//TODO: proper escaping
 fn bash_string_escape(str: &str) -> String {
-	let escaped_str = str.replace('\\', "\\\\").replace('\'', "\\'");
-	format!("$'{escaped_str}'")
+	format!("$'{}'", str.as_bytes().escape_ascii())
 }
