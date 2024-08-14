@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::launch_subcommand::{Command, tui};
+use crate::launch_subcommand::{tui, Command};
 
 use super::{
 	lib::{
@@ -9,7 +9,7 @@ use super::{
 	},
 	path_util,
 	project_data::{self, ProjectDataOption},
-	ParseContext, ModResult,
+	ModResult, ParseContext,
 };
 
 pub struct GlobalConfig {
@@ -52,7 +52,10 @@ const DEFAULT_COLORSCHEME: tui::Colorscheme = tui::Colorscheme {
 	button_label: tui::Color::DarkGrey,
 };
 
-pub fn parse_config_file(path: impl AsRef<Path>, ctx: &mut ParseContext) -> ModResult<GlobalConfig> {
+pub fn parse_config_file(
+	path: impl AsRef<Path>,
+	ctx: &mut ParseContext,
+) -> ModResult<GlobalConfig> {
 	let mut outlivers = (None, None);
 	let parsed_contents =
 		parse_lib::parse_toml_file(path.as_ref(), &mut ctx.file_database, &mut outlivers)?;

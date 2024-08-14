@@ -37,5 +37,8 @@ fn try_main() -> Result<ExitCode, Box<dyn Error>> {
 	}
 
 	let config = unwrap_config_error!(parse_ctx.get_global_config());
-	Ok(unwrap_config_error!(launch_subcommand::run(&mut parse_ctx, config)))
+	Ok(unwrap_config_error!(launch_subcommand::run(
+		&mut parse_ctx,
+		config
+	)))
 }

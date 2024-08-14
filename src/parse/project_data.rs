@@ -5,7 +5,7 @@ use super::{
 		self as parse_lib, diagnostics, ArrayOption, BoolOption, PathBufOption, StringOption, TomlKey,
 		TomlTable, TomlValue,
 	},
-	path_util, ParseContext, ModResult,
+	path_util, ModResult, ParseContext,
 };
 use crate::{
 	project::{EditorCommand, ProjectData},
@@ -18,7 +18,11 @@ pub enum ProjectDataFuture {
 	Bookmark(PathBuf),
 }
 impl ProjectDataFuture {
-	pub fn load(self, parse_state: PrelimParseState, ctx: &mut ParseContext) -> ModResult<ProjectData> {
+	pub fn load(
+		self,
+		parse_state: PrelimParseState,
+		ctx: &mut ParseContext,
+	) -> ModResult<ProjectData> {
 		match self {
 			Self::Project(path) => Self::parse_project_data_file(path, parse_state, ctx),
 			Self::Bookmark(path) => Self::parse_bookmark_file_stage2(path, parse_state, ctx),
