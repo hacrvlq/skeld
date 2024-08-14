@@ -13,6 +13,7 @@ use crossterm::tty::IsTty as _;
 
 use lib::{self as parse_lib, diagnostics, FileDatabase, StringOption, TomlKey, TomlValue};
 
+pub use config::GlobalConfig;
 pub use project_data::{PrelimParseState, ProjectDataFuture};
 
 #[derive(Clone, Debug, derive_more::From)]
