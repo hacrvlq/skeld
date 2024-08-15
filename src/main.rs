@@ -5,6 +5,7 @@ mod sandbox;
 
 use std::{error::Error, process::ExitCode};
 
+use launch_subcommand::{tui, CommandData};
 use parse::ParseContext;
 
 fn main() -> ExitCode {
@@ -41,4 +42,11 @@ fn try_main() -> Result<ExitCode, Box<dyn Error>> {
 		&mut parse_ctx,
 		config
 	)))
+}
+
+pub struct GlobalConfig {
+	pub banner: String,
+	pub colorscheme: tui::Colorscheme,
+	pub commands: Vec<CommandData>,
+	pub global_project_data: parse::PrelimParseState,
 }

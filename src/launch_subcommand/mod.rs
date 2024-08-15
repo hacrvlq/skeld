@@ -12,7 +12,7 @@ use tui::{TuiData, UserSelection};
 
 pub fn run(
 	parse_ctx: &mut ParseContext,
-	global_config: crate::parse::GlobalConfig,
+	global_config: crate::GlobalConfig,
 ) -> Result<ExitCode, ParseError> {
 	let commands = global_config.commands.into_iter().map(|data| tui::Button {
 		keybind: data.keybind,
@@ -90,6 +90,12 @@ impl Action {
 	}
 }
 
+#[derive(Clone)]
+pub struct CommandData {
+	pub name: String,
+	pub keybind: String,
+	pub command: Command,
+}
 //TODO: make project's expressive enough to also handle this concept
 #[derive(Clone, Debug)]
 pub struct Command {

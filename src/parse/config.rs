@@ -1,6 +1,9 @@
 use std::path::Path;
 
-use crate::launch_subcommand::{tui, Command};
+use crate::{
+	launch_subcommand::{tui, Command, CommandData},
+	GlobalConfig,
+};
 
 use super::{
 	lib::{
@@ -12,28 +15,6 @@ use super::{
 	ModResult, ParseContext,
 };
 
-pub struct GlobalConfig {
-	pub banner: String,
-	pub colorscheme: tui::Colorscheme,
-	pub commands: Vec<CommandData>,
-	pub global_project_data: project_data::PrelimParseState,
-}
-#[derive(Clone)]
-pub struct CommandData {
-	pub name: String,
-	pub keybind: String,
-	pub command: Command,
-}
-impl Default for GlobalConfig {
-	fn default() -> Self {
-		GlobalConfig {
-			banner: DEFAULT_BANNER.to_string(),
-			colorscheme: DEFAULT_COLORSCHEME,
-			commands: Vec::new(),
-			global_project_data: project_data::PrelimParseState::empty(),
-		}
-	}
-}
 // generated with FIGlet using the larry3d font
 const DEFAULT_BANNER: &str = r"
        __              ___       __
@@ -51,6 +32,14 @@ const DEFAULT_COLORSCHEME: tui::Colorscheme = tui::Colorscheme {
 	keybind: tui::Color::DarkCyan,
 	button_label: tui::Color::DarkGrey,
 };
+pub fn default_config() -> GlobalConfig {
+	GlobalConfig {
+		banner: DEFAULT_BANNER.to_string(),
+		colorscheme: DEFAULT_COLORSCHEME,
+		commands: Vec::new(),
+		global_project_data: project_data::PrelimParseState::empty(),
+	}
+}
 
 pub fn parse_config_file(
 	path: impl AsRef<Path>,

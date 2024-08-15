@@ -11,9 +11,9 @@ use std::{
 use codespan_reporting::term::{self, termcolor};
 use crossterm::tty::IsTty as _;
 
+use crate::GlobalConfig;
 use lib::{self as parse_lib, diagnostics, FileDatabase, StringOption, TomlKey, TomlValue};
 
-pub use config::GlobalConfig;
 pub use project_data::{PrelimParseState, ProjectDataFuture};
 
 #[derive(Clone, Debug, derive_more::From)]
@@ -68,11 +68,11 @@ impl ParseContext {
 		}
 	}
 
-	pub fn get_global_config(&mut self) -> ModResult<config::GlobalConfig> {
+	pub fn get_global_config(&mut self) -> ModResult<GlobalConfig> {
 		let global_config_file_path = path_util::canonicalize_path("$(CONFIG)/skeld/config.toml")
 			.map_err(|err| format!("{err}"))?;
 		if !global_config_file_path.exists() {
-			return Ok(Default::default());
+			return Ok(config::default_config());
 		}
 		config::parse_config_file(&global_config_file_path, self)
 	}
