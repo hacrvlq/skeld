@@ -5,12 +5,15 @@ use std::{
 	path::{Path, PathBuf},
 };
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, derive_more::Display)]
 pub enum Error {
 	#[display(fmt = "home directory could not be determined")]
 	UnknownHomeDir,
 	#[display(fmt = "home directory has to be absolute")]
 	RelativeHomeDir,
+	#[display(fmt = "{name} must be absolute")]
+	RelativeXdgBaseDir { name: String },
 }
 impl std::error::Error for Error {}
 type ModResult<T> = Result<T, Error>;
@@ -28,10 +31,18 @@ pub fn get_xdg_state_dir() -> ModResult<PathBuf> {
 	get_xdg_base_dir("XDG_STATE_HOME", ".local/state")
 }
 fn get_xdg_base_dir(env_var: &str, fallback: &str) -> ModResult<PathBuf> {
-	if let Some(dir) = env::var_os(env_var) {
-		Ok(dir.into())
-	} else {
-		Ok(get_home_dir()?.join(fallback))
+	match env::var_os(env_var) {
+		Some(env_var_val) if !env_var_val.is_empty() => {
+			let path: PathBuf = env_var_val.into();
+			if path.is_relative() {
+				Err(Error::RelativeXdgBaseDir {
+					name: env_var.to_string(),
+				})
+			} else {
+				Ok(path)
+			}
+		}
+		_ => Ok(get_home_dir()?.join(fallback)),
 	}
 }
 
