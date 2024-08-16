@@ -6,15 +6,25 @@ mod sandbox;
 
 use std::{error::Error, process::ExitCode};
 
+use clap::Parser as _;
+
 use launch_subcommand::{tui, CommandData};
 use parse::ParseContext;
 
-fn main() -> ExitCode {
-	clap::command!()
-		.name("Skeld")
-		.about("Open projects in a restricted sandbox")
-		.get_matches();
+#[derive(clap::Parser)]
+#[command(version, about = "Open projects in a restricted sandbox")]
+struct CliArgs {
+	#[command(subcommand)]
+	subcommand: Option<CliSubcommands>,
+}
 
+#[derive(clap::Subcommand)]
+enum CliSubcommands {
+	/// Launch the skeld tui (Default Command)
+	Launch,
+}
+
+fn main() -> ExitCode {
 	match try_main() {
 		Ok(code) => code,
 		Err(err) => {
@@ -24,6 +34,8 @@ fn main() -> ExitCode {
 	}
 }
 fn try_main() -> Result<ExitCode, Box<dyn Error>> {
+	let args = CliArgs::parse();
+
 	let mut parse_ctx = ParseContext::new();
 	// convenience macro, as config errors are displayed via 'parse_ctx'
 	macro_rules! unwrap_config_error {
@@ -39,10 +51,14 @@ fn try_main() -> Result<ExitCode, Box<dyn Error>> {
 	}
 
 	let config = unwrap_config_error!(parse_ctx.get_global_config());
-	Ok(unwrap_config_error!(launch_subcommand::run(
-		&mut parse_ctx,
-		config
-	)))
+
+	let subcommand = args.subcommand.unwrap_or(CliSubcommands::Launch);
+	match subcommand {
+		CliSubcommands::Launch => Ok(unwrap_config_error!(launch_subcommand::run(
+			&mut parse_ctx,
+			config
+		))),
+	}
 }
 
 pub struct GlobalConfig {
