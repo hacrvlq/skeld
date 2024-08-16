@@ -5,7 +5,7 @@ use super::{
 		self as parse_lib, diagnostics, ArrayOption, BoolOption, PathBufOption, StringOption, TomlKey,
 		TomlTable, TomlValue,
 	},
-	path_util, ModResult, ParseContext,
+	path, ModResult, ParseContext,
 };
 use crate::{
 	project::{EditorCommand, ProjectData},
@@ -110,9 +110,9 @@ pub struct PrelimParseState {
 impl PrelimParseState {
 	pub fn empty() -> Self {
 		Self {
-			project_dir: PathBufOption::new("project-dir", |str| Ok(path_util::canonicalize_path(str)?)),
+			project_dir: PathBufOption::new("project-dir", |str| Ok(path::canonicalize_path(str)?)),
 			initial_file: StringOption::new_with_canonicalization("initial-file", |str| {
-				Ok(path_util::substitute_placeholder(str, false)?)
+				Ok(path::substitute_placeholder(str, false)?)
 			}),
 			editor: EditorCommandOption::new(),
 			virtual_fs: VirtualFSOption::new(),
@@ -173,7 +173,7 @@ impl PrelimParseState {
 	fn parse_table(&mut self, table: &TomlTable, ctx: &mut ParseContext) -> ModResult<()> {
 		let mut include_option = ArrayOption::new("include", false, |raw_value| {
 			let value = raw_value.as_str()?;
-			path_util::canonicalize_include_path(value)
+			path::canonicalize_include_path(value)
 				.map_err(|err| diagnostics::failed_canonicalization(raw_value, &err).into())
 		});
 
@@ -226,7 +226,7 @@ impl parse_lib::ConfigOption for VirtualFSOption {
 
 		let mut patharray_option = ArrayOption::new(key.name(), false, |raw_value| {
 			let value = raw_value.as_str()?;
-			let parsed_value = path_util::canonicalize_path(value)
+			let parsed_value = path::canonicalize_path(value)
 				.map_err(|err| diagnostics::failed_canonicalization(raw_value, &err))?;
 			Ok((parsed_value, raw_value.loc().clone()))
 		});
@@ -286,12 +286,12 @@ impl parse_lib::ConfigOption for EditorCommandOption {
 
 		let mut cmd_with_file = ArrayOption::new("cmd-with-file", false, |raw_value| {
 			let value = raw_value.as_str()?;
-			path_util::substitute_placeholder(value, true)
+			path::substitute_placeholder(value, true)
 				.map_err(|err| diagnostics::failed_canonicalization(raw_value, &err).into())
 		});
 		let mut cmd_without_file = ArrayOption::new("cmd-without-file", false, |raw_value| {
 			let value = raw_value.as_str()?;
-			path_util::substitute_placeholder(value, false)
+			path::substitute_placeholder(value, false)
 				.map_err(|err| diagnostics::failed_canonicalization(raw_value, &err).into())
 		});
 		let mut detach = BoolOption::new("detach");

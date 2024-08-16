@@ -1,23 +1,27 @@
-use std::{env, ffi::CStr, ops::RangeInclusive, path::PathBuf};
+use std::{env, ops::RangeInclusive, path::PathBuf};
+
+use crate::paths;
 
 #[derive(Debug, derive_more::From, derive_more::Display)]
 pub enum Error {
 	#[display(fmt = "illformed")]
 	Illformed,
+	#[display(fmt = "expands to invalid UTF-8")]
+	InvalidUtf8,
 	#[display(fmt = "{}", "Self::display_env_var(name, err)")]
 	EnvVar { name: String, err: env::VarError },
 	#[display(fmt = "unknown variable")]
 	UnkownVariable,
-	#[display(fmt = "home directory could not be determined")]
-	UnknownHomeDir,
-	#[display(fmt = "home directory is not valid UTF-8")]
-	InvalidHomeDir,
 	#[display(fmt = "could not find this include file")]
 	IncludeFileNotFound,
 	#[display(fmt = "found multiple matching files: {files:?}")]
 	MultipleMatchingIncludeFiles { files: Vec<PathBuf> },
 	#[display(fmt = "this path has to be absolute")]
 	RelativePath,
+
+	#[allow(clippy::enum_variant_names)]
+	#[from]
+	PathsError(paths::Error),
 }
 impl Error {
 	fn display_env_var(name: &str, err: &env::VarError) -> String {
@@ -108,7 +112,10 @@ pub fn substitute_placeholder(str: impl Into<String>, allow_file_var: bool) -> M
 		}
 	}
 
-	let str = str.replace('~', &get_home_dir()?);
+	let str = str.replace(
+		'~',
+		paths::get_home_dir()?.to_str().ok_or(Error::InvalidUtf8)?,
+	);
 	Ok(str)
 }
 fn resolve_envvar_expr(expr: &str) -> ModResult<String> {
@@ -129,14 +136,16 @@ fn resolve_envvar_expr(expr: &str) -> ModResult<String> {
 	}
 }
 fn resolve_variable_expr(expr: &str, allow_file_var: bool) -> ModResult<Option<String>> {
-	Ok(match expr {
-		"CONFIG" => Some(env::var("XDG_CONFIG_HOME").unwrap_or("~/.config/".to_string())),
-		"CACHE" => Some(env::var("XDG_CACHE_HOME").unwrap_or("~/.cache/".to_string())),
-		"DATA" => Some(env::var("XDG_DATA_HOME").unwrap_or("~/.local/share/".to_string())),
-		"STATE" => Some(env::var("XDG_STATE_HOME").unwrap_or("~/.local/state/".to_string())),
-		"FILE" if allow_file_var => None,
+	let path = match expr {
+		"CONFIG" => paths::get_xdg_config_dir()?,
+		"CACHE" => paths::get_xdg_cache_dir()?,
+		"DATA" => paths::get_xdg_data_dir()?,
+		"STATE" => paths::get_xdg_state_dir()?,
+		"FILE" if allow_file_var => return Ok(None),
 		_ => return Err(Error::UnkownVariable),
-	})
+	};
+
+	Ok(Some(path.to_str().ok_or(Error::InvalidUtf8)?.to_string()))
 }
 
 pub fn canonicalize_include_path(path: impl Into<String>) -> ModResult<PathBuf> {
@@ -147,7 +156,7 @@ pub fn canonicalize_include_path(path: impl Into<String>) -> ModResult<PathBuf> 
 	};
 
 	let mut possible_files = Vec::new();
-	for data_root_dir in get_data_root_paths()? {
+	for data_root_dir in paths::get_skeld_data_dirs()? {
 		let include_root_dir = data_root_dir.join("include");
 		let possible_file_path = include_root_dir.join(&path);
 		if possible_file_path.exists() {
@@ -165,30 +174,4 @@ pub fn canonicalize_include_path(path: impl Into<String>) -> ModResult<PathBuf> 
 		assert!(possible_files.len() == 1);
 		Ok(possible_files.into_iter().next().unwrap())
 	}
-}
-
-pub fn get_data_root_paths() -> ModResult<Vec<PathBuf>> {
-	let config_dir = canonicalize_path("$(CONFIG)/skeld")?;
-	let data_dir = canonicalize_path("$(DATA)/skeld")?;
-	Ok(vec![config_dir, data_dir])
-}
-
-fn get_home_dir() -> ModResult<String> {
-	if let Ok(home_dir) = env::var("HOME") {
-		return Ok(home_dir);
-	}
-
-	let passwd_ptr = unsafe { libc::getpwuid(libc::getuid()) };
-	if passwd_ptr.is_null() {
-		return Err(Error::UnknownHomeDir);
-	}
-	let home_dir = unsafe { *passwd_ptr }.pw_dir;
-	if home_dir.is_null() {
-		return Err(Error::UnknownHomeDir);
-	}
-	let home_dir_str = unsafe { CStr::from_ptr(home_dir) }
-		.to_str()
-		.map_err(|_| Error::InvalidHomeDir)?;
-	assert!(PathBuf::from(home_dir_str).exists());
-	Ok(home_dir_str.to_string())
 }

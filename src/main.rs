@@ -1,5 +1,6 @@
 mod launch_subcommand;
 mod parse;
+mod paths;
 mod project;
 mod sandbox;
 

@@ -10,7 +10,7 @@ use super::{
 		self as parse_lib, diagnostics, ArrayOption, BaseOption, BoolOption, ConfigOption, Diagnostic,
 		StringOption, TomlKey, TomlValue,
 	},
-	path_util,
+	path,
 	project_data::{self, ProjectDataOption},
 	ModResult, ParseContext,
 };
@@ -70,7 +70,7 @@ fn parse_command_data(value: &TomlValue) -> ModResult<CommandData> {
 	let mut keybind = StringOption::new("keybind");
 	let mut command = ArrayOption::new("command", false, |raw_value| {
 		let value = raw_value.as_str()?;
-		path_util::substitute_placeholder(value, false)
+		path::substitute_placeholder(value, false)
 			.map_err(|err| diagnostics::failed_canonicalization(raw_value, &err).into())
 	});
 	let mut detach = BoolOption::new("detach");

@@ -1,6 +1,6 @@
 mod config;
 mod lib;
-mod path_util;
+mod path;
 mod project_data;
 
 use std::{
@@ -11,7 +11,7 @@ use std::{
 use codespan_reporting::term::{self, termcolor};
 use crossterm::tty::IsTty as _;
 
-use crate::GlobalConfig;
+use crate::{paths, GlobalConfig};
 use lib::{self as parse_lib, diagnostics, FileDatabase, StringOption, TomlKey, TomlValue};
 
 pub use project_data::{PrelimParseState, ProjectDataFuture};
@@ -69,8 +69,9 @@ impl ParseContext {
 	}
 
 	pub fn get_global_config(&mut self) -> ModResult<GlobalConfig> {
-		let global_config_file_path = path_util::canonicalize_path("$(CONFIG)/skeld/config.toml")
-			.map_err(|err| format!("{err}"))?;
+		let global_config_file_path = paths::get_skeld_config_dir()
+			.map_err(|err| format!("{err}"))?
+			.join("config.toml");
 		if !global_config_file_path.exists() {
 			return Ok(config::default_config());
 		}
@@ -78,7 +79,7 @@ impl ParseContext {
 	}
 	pub fn get_projects(&mut self) -> ModResult<Vec<ProjectButtonData>> {
 		let mut projects = Vec::new();
-		for data_root_dir in path_util::get_data_root_paths().map_err(|err| format!("{err}"))? {
+		for data_root_dir in paths::get_skeld_data_dirs().map_err(|err| format!("{err}"))? {
 			let projects_root_dir = data_root_dir.join("projects");
 			projects.append(&mut self.read_projects_from_dir(projects_root_dir)?);
 		}
@@ -108,7 +109,7 @@ impl ParseContext {
 	}
 	pub fn get_bookmarks(&mut self) -> ModResult<Vec<BookmarkData>> {
 		let mut bookmarks = Vec::new();
-		for data_root_dir in path_util::get_data_root_paths().map_err(|err| format!("{err}"))? {
+		for data_root_dir in paths::get_skeld_data_dirs().map_err(|err| format!("{err}"))? {
 			let bookmarks_dir = data_root_dir.join("bookmarks/");
 			bookmarks.append(&mut self.read_bookmarks_from_dir(bookmarks_dir)?);
 		}
