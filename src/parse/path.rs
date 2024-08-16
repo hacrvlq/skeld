@@ -112,11 +112,14 @@ pub fn substitute_placeholder(str: impl Into<String>, allow_file_var: bool) -> M
 		}
 	}
 
-	let str = str.replace(
-		'~',
-		paths::get_home_dir()?.to_str().ok_or(Error::InvalidUtf8)?,
-	);
-	Ok(str)
+	if str.contains('~') {
+		Ok(str.replace(
+			'~',
+			paths::get_home_dir()?.to_str().ok_or(Error::InvalidUtf8)?,
+		))
+	} else {
+		Ok(str)
+	}
 }
 fn resolve_envvar_expr(expr: &str) -> ModResult<String> {
 	let parts = expr.split(':').collect::<Vec<_>>();
