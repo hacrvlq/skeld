@@ -1,10 +1,11 @@
+mod add_subcommand;
 mod launch_subcommand;
 mod parse;
 mod paths;
 mod project;
 mod sandbox;
 
-use std::{error::Error, process::ExitCode};
+use std::{error::Error, path::PathBuf, process::ExitCode};
 
 use clap::Parser as _;
 
@@ -17,11 +18,22 @@ struct CliArgs {
 	#[command(subcommand)]
 	subcommand: Option<CliSubcommands>,
 }
-
 #[derive(clap::Subcommand)]
 enum CliSubcommands {
 	/// Launch the skeld tui (Default Command)
 	Launch,
+	/// Add a project
+	Add(AddArgs),
+}
+
+#[derive(clap::Parser)]
+struct AddArgs {
+	#[arg(id = "PATH")]
+	/// Path to the project
+	project_path: PathBuf,
+	#[arg(long = "name", id = "NAME")]
+	/// Use this name instead of the name derived from the path
+	project_name: Option<String>,
 }
 
 fn main() -> ExitCode {
@@ -58,6 +70,10 @@ fn try_main() -> Result<ExitCode, Box<dyn Error>> {
 			&mut parse_ctx,
 			config
 		))),
+		CliSubcommands::Add(args) => {
+			add_subcommand::run(args)?;
+			Ok(ExitCode::SUCCESS)
+		}
 	}
 }
 
