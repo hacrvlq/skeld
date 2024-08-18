@@ -9,8 +9,10 @@ use std::{error::Error, path::PathBuf, process::ExitCode};
 
 use clap::Parser as _;
 
-use launch_subcommand::{tui, CommandData};
-use parse::ParseContext;
+use crate::{
+	launch_subcommand::{tui, CommandData},
+	parse::ParseContext,
+};
 
 #[derive(clap::Parser)]
 #[command(version, about = "Open projects in a restricted sandbox")]

@@ -11,8 +11,8 @@ use std::{
 use codespan_reporting::term::{self, termcolor};
 use crossterm::tty::IsTty as _;
 
+use self::lib::{self as parse_lib, diagnostics, FileDatabase, StringOption, TomlKey, TomlValue};
 use crate::{paths, GlobalConfig};
-use lib::{self as parse_lib, diagnostics, FileDatabase, StringOption, TomlKey, TomlValue};
 
 pub use project_data::{PrelimParseState, ProjectDataFuture};
 

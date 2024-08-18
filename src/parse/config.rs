@@ -1,10 +1,5 @@
 use std::path::Path;
 
-use crate::{
-	launch_subcommand::{tui, Command, CommandData},
-	GlobalConfig,
-};
-
 use super::{
 	lib::{
 		self as parse_lib, diagnostics, ArrayOption, BaseOption, BoolOption, ConfigOption, Diagnostic,
@@ -13,6 +8,10 @@ use super::{
 	path,
 	project_data::{self, ProjectDataOption},
 	ModResult, ParseContext,
+};
+use crate::{
+	launch_subcommand::{tui, Command, CommandData},
+	GlobalConfig,
 };
 
 // generated with FIGlet using the larry3d font

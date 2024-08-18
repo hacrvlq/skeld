@@ -7,8 +7,8 @@ use std::{
 
 use nix::unistd;
 
+use self::tui::{TuiData, UserSelection};
 use crate::parse::{Error as ParseError, ParseContext, PrelimParseState, ProjectDataFuture};
-use tui::{TuiData, UserSelection};
 
 pub fn run(
 	parse_ctx: &mut ParseContext,
