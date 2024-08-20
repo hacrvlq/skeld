@@ -8,11 +8,11 @@ use std::{
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, derive_more::Display)]
 pub enum Error {
-	#[display(fmt = "home directory could not be determined")]
+	#[display("home directory could not be determined")]
 	UnknownHomeDir,
-	#[display(fmt = "home directory has to be absolute")]
+	#[display("home directory has to be absolute")]
 	RelativeHomeDir,
-	#[display(fmt = "{name} must be absolute")]
+	#[display("{name} must be absolute")]
 	RelativeXdgBaseDir { name: String },
 }
 impl std::error::Error for Error {}

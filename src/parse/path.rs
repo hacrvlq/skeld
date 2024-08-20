@@ -4,19 +4,19 @@ use crate::paths;
 
 #[derive(Debug, derive_more::From, derive_more::Display)]
 pub enum Error {
-	#[display(fmt = "illformed")]
+	#[display("illformed")]
 	Illformed,
-	#[display(fmt = "expands to invalid UTF-8")]
+	#[display("expands to invalid UTF-8")]
 	InvalidUtf8,
-	#[display(fmt = "{}", "Self::display_env_var(name, err)")]
+	#[display("{}", Self::display_env_var(name, err))]
 	EnvVar { name: String, err: env::VarError },
-	#[display(fmt = "unknown variable")]
+	#[display("unknown variable")]
 	UnkownVariable,
-	#[display(fmt = "could not find this include file")]
+	#[display("could not find this include file")]
 	IncludeFileNotFound,
-	#[display(fmt = "found multiple matching files: {files:?}")]
+	#[display("found multiple matching files: {files:?}")]
 	MultipleMatchingIncludeFiles { files: Vec<PathBuf> },
-	#[display(fmt = "this path has to be absolute")]
+	#[display("this path has to be absolute")]
 	RelativePath,
 
 	#[allow(clippy::enum_variant_names)]

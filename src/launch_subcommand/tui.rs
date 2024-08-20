@@ -46,9 +46,9 @@ pub struct Button<U> {
 
 #[derive(Debug, derive_more::From, derive_more::Display)]
 pub enum UiError {
-	#[display(fmt = "Error: skeld can only be used in a tty")]
+	#[display("Error: skeld can only be used in a tty")]
 	NoTty,
-	#[display(fmt = "IO Error while displaying TUI: {_0}")]
+	#[display("IO Error while displaying TUI: {_0}")]
 	IoError(io::Error),
 }
 impl Error for UiError {}
