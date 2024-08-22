@@ -8,20 +8,15 @@ use std::{
 	path::{Path, PathBuf},
 };
 
-use codespan_reporting::term::{self, termcolor};
-use crossterm::tty::IsTty as _;
-
-use self::lib::{self as parse_lib, diagnostics, FileDatabase, StringOption, TomlKey, TomlValue};
+use self::lib::{self as parse_lib, diagnostics, StringOption, TomlKey, TomlValue};
 use crate::{paths, GlobalConfig};
 
-pub use project_data::{PrelimParseState, ProjectDataFuture};
+pub use self::{
+	lib::{Diagnostic, FileDatabase},
+	project_data::{PrelimParseState, ProjectDataFuture},
+};
 
-#[derive(Clone, Debug, derive_more::From)]
-pub enum Error {
-	Diagnostic(lib::Diagnostic),
-	Generic(String),
-}
-type ModResult<T> = Result<T, Error>;
+type ModResult<T> = crate::GenericResult<T>;
 
 #[derive(Clone)]
 pub struct ProjectButtonData {
@@ -37,37 +32,10 @@ pub struct BookmarkData {
 
 // NOTE: FileDatabase is required for displaying errors,
 //       therefore it is stored globally
-pub struct ParseContext {
-	file_database: FileDatabase,
+pub struct ParseContext<'a> {
+	pub file_database: &'a mut FileDatabase,
 }
-impl ParseContext {
-	pub fn new() -> Self {
-		Self {
-			file_database: FileDatabase::new(),
-		}
-	}
-	pub fn print_error(&self, err: &Error) {
-		match err {
-			Error::Diagnostic(diag) => {
-				let color_choice = if io::stderr().is_tty() {
-					termcolor::ColorChoice::Auto
-				} else {
-					termcolor::ColorChoice::Never
-				};
-				let writer = termcolor::StandardStream::stderr(color_choice);
-				let config = term::Config::default();
-				let writer_error = term::emit(&mut writer.lock(), &config, &self.file_database, diag);
-				if writer_error.is_err() {
-					eprintln!(
-						"Failed to pretty-print error, here is the raw version:\nerror: {}",
-						diag.message
-					);
-				}
-			}
-			Error::Generic(msg) => eprintln!("{msg}"),
-		}
-	}
-
+impl ParseContext<'_> {
 	pub fn get_global_config(&mut self) -> ModResult<GlobalConfig> {
 		let global_config_file_path = paths::get_skeld_config_dir()
 			.map_err(|err| format!("{err}"))?
@@ -130,7 +98,7 @@ impl ParseContext {
 	pub fn parse_bookmark_file_stage1(&mut self, path: impl AsRef<Path>) -> ModResult<BookmarkData> {
 		let mut outlivers = (None, None);
 		let parsed_contents =
-			parse_lib::parse_toml_file(path.as_ref(), &mut self.file_database, &mut outlivers)?;
+			parse_lib::parse_toml_file(path.as_ref(), self.file_database, &mut outlivers)?;
 
 		let mut name = StringOption::new("name");
 		let mut keybind = StringOption::new("keybind");

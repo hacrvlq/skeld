@@ -34,7 +34,7 @@ impl ProjectDataFuture {
 		ctx: &mut ParseContext,
 	) -> ModResult<ProjectData> {
 		let mut outlivers = (None, None);
-		let parsed_contents = parse_lib::parse_toml_file(path, &mut ctx.file_database, &mut outlivers)?;
+		let parsed_contents = parse_lib::parse_toml_file(path, ctx.file_database, &mut outlivers)?;
 		parse_state.parse_table(&parsed_contents, ctx)?;
 
 		let project_data = parse_state
@@ -49,7 +49,7 @@ impl ProjectDataFuture {
 	) -> ModResult<ProjectData> {
 		let mut outlivers = (None, None);
 		let parsed_contents =
-			parse_lib::parse_toml_file(path.as_ref(), &mut ctx.file_database, &mut outlivers)?;
+			parse_lib::parse_toml_file(path.as_ref(), ctx.file_database, &mut outlivers)?;
 
 		let mut name = StringOption::new("name");
 		let mut keybind = StringOption::new("keybind");
@@ -64,13 +64,13 @@ impl ProjectDataFuture {
 	}
 }
 
-pub struct ProjectDataOption<'a> {
+pub struct ProjectDataOption<'a, 'b> {
 	name: String,
 	value: PrelimParseState,
-	ctx: &'a mut ParseContext,
+	ctx: &'a mut ParseContext<'b>,
 }
-impl<'a> ProjectDataOption<'a> {
-	pub fn new(name: &str, initial_state: PrelimParseState, ctx: &'a mut ParseContext) -> Self {
+impl<'a, 'b> ProjectDataOption<'a, 'b> {
+	pub fn new(name: &str, initial_state: PrelimParseState, ctx: &'a mut ParseContext<'b>) -> Self {
 		Self {
 			name: name.to_string(),
 			value: initial_state,
@@ -81,7 +81,7 @@ impl<'a> ProjectDataOption<'a> {
 		self.value
 	}
 }
-impl parse_lib::ConfigOption for ProjectDataOption<'_> {
+impl parse_lib::ConfigOption for ProjectDataOption<'_, '_> {
 	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool> {
 		if key.name() != self.name {
 			return Ok(false);
@@ -165,7 +165,7 @@ impl PrelimParseState {
 		self.parsed_files.push(path.to_path_buf());
 
 		let mut outlivers = (None, None);
-		let parsed_contents = parse_lib::parse_toml_file(path, &mut ctx.file_database, &mut outlivers)?;
+		let parsed_contents = parse_lib::parse_toml_file(path, ctx.file_database, &mut outlivers)?;
 
 		self.parse_table(&parsed_contents, ctx)?;
 		Ok(())

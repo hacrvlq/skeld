@@ -1,19 +1,19 @@
 pub mod tui;
 
-use std::{
-	error::Error,
-	process::{Command as OsCommand, ExitCode},
-};
+use std::process::{Command as OsCommand, ExitCode};
 
 use nix::unistd;
 
 use self::tui::{TuiData, UserSelection};
-use crate::parse::{Error as ParseError, ParseContext, PrelimParseState, ProjectDataFuture};
+use crate::{
+	parse::{ParseContext, PrelimParseState, ProjectDataFuture},
+	GenericResult,
+};
 
 pub fn run(
 	parse_ctx: &mut ParseContext,
 	global_config: crate::GlobalConfig,
-) -> Result<ExitCode, ParseError> {
+) -> GenericResult<ExitCode> {
 	let commands = global_config.commands.into_iter().map(|data| tui::Button {
 		keybind: data.keybind,
 		text: data.name,
@@ -79,9 +79,9 @@ impl Action {
 		self,
 		parse_state: PrelimParseState,
 		ctx: &mut ParseContext,
-	) -> Result<ExitCode, ParseError> {
+	) -> GenericResult<ExitCode> {
 		match self {
-			Action::Run(cmd) => cmd.run().map_err(|err| err.to_string().into()),
+			Action::Run(cmd) => cmd.run(),
 			Action::OpenProject(project) => {
 				let project_result = project.load(parse_state, ctx)?;
 				project_result.open().map_err(|err| err.to_string().into())
@@ -103,7 +103,7 @@ pub struct Command {
 	pub detach: bool,
 }
 impl Command {
-	fn run(self) -> Result<ExitCode, Box<dyn Error>> {
+	fn run(self) -> GenericResult<ExitCode> {
 		if self.command.is_empty() {
 			return Ok(ExitCode::SUCCESS);
 		}

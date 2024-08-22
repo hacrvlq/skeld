@@ -1,11 +1,12 @@
 mod add_subcommand;
+mod error;
 mod launch_subcommand;
 mod parse;
 mod paths;
 mod project;
 mod sandbox;
 
-use std::{error::Error, path::PathBuf, process::ExitCode};
+use std::{path::PathBuf, process::ExitCode};
 
 use clap::Parser as _;
 
@@ -13,6 +14,8 @@ use crate::{
 	launch_subcommand::{tui, CommandData},
 	parse::ParseContext,
 };
+
+pub use error::{GenericError, GenericResult};
 
 #[derive(clap::Parser)]
 #[command(version, about = "Open projects in a restricted sandbox")]
@@ -39,39 +42,25 @@ struct AddArgs {
 }
 
 fn main() -> ExitCode {
-	match try_main() {
+	let mut file_database = parse::FileDatabase::new();
+
+	match try_main(&mut file_database) {
 		Ok(code) => code,
 		Err(err) => {
-			eprintln!("{err}");
+			err.print(&file_database);
 			ExitCode::FAILURE
 		}
 	}
 }
-fn try_main() -> Result<ExitCode, Box<dyn Error>> {
+fn try_main(file_database: &mut parse::FileDatabase) -> GenericResult<ExitCode> {
 	let args = CliArgs::parse();
 
-	let mut parse_ctx = ParseContext::new();
-	// convenience macro, as config errors are displayed via 'parse_ctx'
-	macro_rules! unwrap_config_error {
-		($err:expr) => {
-			match $err {
-				Ok(val) => val,
-				Err(err) => {
-					parse_ctx.print_error(&err);
-					return Ok(ExitCode::FAILURE);
-				}
-			}
-		};
-	}
-
-	let config = unwrap_config_error!(parse_ctx.get_global_config());
+	let mut parse_ctx = ParseContext { file_database };
+	let config = parse_ctx.get_global_config()?;
 
 	let subcommand = args.subcommand.unwrap_or(CliSubcommands::Launch);
 	match subcommand {
-		CliSubcommands::Launch => Ok(unwrap_config_error!(launch_subcommand::run(
-			&mut parse_ctx,
-			config
-		))),
+		CliSubcommands::Launch => launch_subcommand::run(&mut parse_ctx, config),
 		CliSubcommands::Add(args) => {
 			add_subcommand::run(args)?;
 			Ok(ExitCode::SUCCESS)

@@ -46,7 +46,7 @@ pub fn parse_config_file(
 ) -> ModResult<GlobalConfig> {
 	let mut outlivers = (None, None);
 	let parsed_contents =
-		parse_lib::parse_toml_file(path.as_ref(), &mut ctx.file_database, &mut outlivers)?;
+		parse_lib::parse_toml_file(path.as_ref(), ctx.file_database, &mut outlivers)?;
 
 	let mut global_project_data =
 		ProjectDataOption::new("project", project_data::PrelimParseState::empty(), ctx);
