@@ -110,9 +110,9 @@ pub struct PrelimParseState {
 impl PrelimParseState {
 	pub fn empty() -> Self {
 		Self {
-			project_dir: PathBufOption::new("project-dir", |str| Ok(path::canonicalize_path(str)?)),
+			project_dir: PathBufOption::new("project-dir", |str| path::canonicalize_path(str)),
 			initial_file: StringOption::new_with_canonicalization("initial-file", |str| {
-				Ok(path::substitute_placeholder(str, false)?)
+				path::substitute_placeholder(str, false)
 			}),
 			editor: EditorCommandOption::new(),
 			virtual_fs: VirtualFSOption::new(),

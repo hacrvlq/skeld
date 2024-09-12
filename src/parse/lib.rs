@@ -1,14 +1,14 @@
 use std::{
 	borrow::Cow,
 	cmp::PartialEq,
-	fmt::Display,
 	fs,
+	ops::Range,
 	path::{Path, PathBuf},
 	rc::Rc,
 };
 
 use codespan_reporting::{
-	diagnostic::{self, Label as DiagLabel},
+	diagnostic::{self, Label as DiagLabel, LabelStyle as DiagLabelStyle},
 	files as codespan_files,
 };
 use toml_span::Span;
@@ -233,7 +233,7 @@ pub struct PathBufOption(BaseOption<PathBuf>);
 impl PathBufOption {
 	pub fn new(
 		name: &str,
-		canonicalization: impl Fn(&str) -> CanonicalizationResult<PathBuf> + 'static,
+		canonicalization: impl Fn(&str) -> Result<PathBuf, CanonicalizationError> + 'static,
 	) -> Self {
 		Self(BaseOption::new(name, move |value| {
 			let raw_value = value.as_str()?;
@@ -258,7 +258,7 @@ impl StringOption {
 	}
 	pub fn new_with_canonicalization(
 		name: &str,
-		canonicalization: impl Fn(&str) -> CanonicalizationResult<String> + 'static,
+		canonicalization: impl Fn(&str) -> Result<String, CanonicalizationError> + 'static,
 	) -> Self {
 		Self(BaseOption::new(name, move |value| {
 			let raw_value = value.as_str()?;
@@ -275,7 +275,74 @@ impl ConfigOption for StringOption {
 		self.0.try_eat(key, value)
 	}
 }
-type CanonicalizationResult<T> = Result<T, Box<dyn std::error::Error>>;
+
+pub struct CanonicalizationError {
+	pub main_message: String,
+	pub labels: Vec<CanonicalizationLabel>,
+	pub notes: Vec<String>,
+}
+pub struct CanonicalizationLabel {
+	pub ty: DiagLabelStyle,
+	pub span: Option<Range<usize>>,
+	pub message: String,
+}
+impl CanonicalizationError {
+	pub fn main_message(msg: impl Into<String>) -> Self {
+		Self {
+			main_message: msg.into(),
+			labels: vec![CanonicalizationLabel::primary_without_span("")],
+			notes: Vec::new(),
+		}
+	}
+	pub fn shift(self, amount: usize) -> Self {
+		Self {
+			labels: self
+				.labels
+				.into_iter()
+				.map(|label| label.shift(amount))
+				.collect(),
+			..self
+		}
+	}
+}
+impl CanonicalizationLabel {
+	pub fn primary_with_span(span: Range<usize>, msg: impl Into<String>) -> Self {
+		Self {
+			ty: DiagLabelStyle::Primary,
+			span: Some(span),
+			message: msg.into(),
+		}
+	}
+	pub fn primary_without_span(msg: impl Into<String>) -> Self {
+		Self {
+			ty: DiagLabelStyle::Primary,
+			span: None,
+			message: msg.into(),
+		}
+	}
+	pub fn secondary_with_span(span: Range<usize>, msg: impl Into<String>) -> Self {
+		Self {
+			ty: DiagLabelStyle::Secondary,
+			span: Some(span),
+			message: msg.into(),
+		}
+	}
+	#[expect(unused)]
+	pub fn secondary_without_span(msg: impl Into<String>) -> Self {
+		Self {
+			ty: DiagLabelStyle::Secondary,
+			span: None,
+			message: msg.into(),
+		}
+	}
+
+	pub fn shift(self, amount: usize) -> Self {
+		Self {
+			span: self.span.map(|span| span.start + amount..span.end + amount),
+			..self
+		}
+	}
+}
 
 #[derive(Clone)]
 pub struct ArrayOption<V> {
@@ -355,13 +422,30 @@ pub(crate) use parse_table;
 pub mod diagnostics {
 	use super::*;
 
-	pub fn failed_canonicalization(value: &TomlValue, err: &impl Display) -> Diagnostic {
+	pub fn failed_canonicalization(value: &TomlValue, err: &CanonicalizationError) -> Diagnostic {
+		let resolve_relative_span = |relative_span: &Range<usize>| {
+			let mut loc = value.loc().clone();
+
+			let base_span = loc.span;
+			loc.span.start = base_span.start + relative_span.start;
+			loc.span.end = base_span.start + relative_span.end;
+			assert!(loc.span.end <= base_span.end);
+
+			loc
+		};
+		let convert_label = |label: &CanonicalizationLabel| -> DiagLabel<usize> {
+			let loc = label
+				.span
+				.as_ref()
+				.map(resolve_relative_span)
+				.unwrap_or(value.loc().clone());
+			DiagLabel::new(label.ty, loc.file.0, loc.span).with_message(&label.message)
+		};
+
 		Diagnostic::new(Severity::Error)
-			.with_message("failed to parse string")
-			.with_labels(vec![value
-				.loc()
-				.get_primary_label()
-				.with_message(format!("{err}"))])
+			.with_message(&err.main_message)
+			.with_labels(err.labels.iter().map(convert_label).collect())
+			.with_notes(err.notes.clone())
 	}
 	pub fn missing_option(loc: &Location, missing: &str) -> Diagnostic {
 		let label = loc.get_primary_label();

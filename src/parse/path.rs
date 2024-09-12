@@ -1,15 +1,35 @@
 use std::{env, iter, ops::Range, path::PathBuf};
 
-use crate::paths;
+use crate::{
+	parse::lib::{CanonicalizationError, CanonicalizationLabel},
+	paths,
+};
 
-type ModResult<T> = Result<T, std::convert::Infallible>;
+type ModResult<T> = Result<T, CanonicalizationError>;
 
 pub fn canonicalize_path(path: impl Into<String>) -> ModResult<PathBuf> {
-	let path = PathBuf::from(substitute_placeholder(path, false)?);
-	if path.is_relative() {
-		panic!();
+	let path = path.into();
+
+	let substituted_path_str = substitute_placeholder(&path, false)?;
+	let substituted_path = PathBuf::from(&substituted_path_str);
+
+	if substituted_path.is_relative() {
+		let mut notes = Vec::new();
+		if find_next_placeholder_poi(&path).is_some() {
+			notes.push(format!(
+				"after the placeholders have been resolved: `{substituted_path_str}`"
+			));
+		}
+		return Err(CanonicalizationError {
+			labels: vec![CanonicalizationLabel::primary_without_span(
+				"this path must be absolute",
+			)],
+			notes,
+			..CanonicalizationError::main_message("unallowed relative path")
+		});
 	}
-	Ok(path)
+
+	Ok(substituted_path)
 }
 pub fn canonicalize_include_path(path: impl Into<String>) -> ModResult<PathBuf> {
 	let path = PathBuf::from(substitute_placeholder(path, false)?);
@@ -18,22 +38,39 @@ pub fn canonicalize_include_path(path: impl Into<String>) -> ModResult<PathBuf> 
 		return Ok(path);
 	};
 
-	let mut possible_files = Vec::new();
+	let mut matching_files = Vec::new();
 	for data_root_dir in paths::get_skeld_data_dirs().unwrap() {
 		let include_root_dir = data_root_dir.join("include");
 		let possible_file_path = include_root_dir.join(&path);
 		if possible_file_path.exists() {
-			possible_files.push(possible_file_path);
+			matching_files.push(possible_file_path);
 		}
 	}
 
-	if possible_files.is_empty() {
-		panic!();
-	} else if possible_files.len() >= 2 {
-		panic!();
+	if matching_files.is_empty() {
+		Err(CanonicalizationError {
+			notes: vec!["<TODO: link to docs>".to_string()],
+			..CanonicalizationError::main_message("include file not found")
+		})
+	} else if matching_files.len() > 1 {
+		let matching_files_str = matching_files
+			.iter()
+			.map(|path| format!("- {}", path.display()))
+			.collect::<Vec<_>>()
+			.join("\n");
+		Err(CanonicalizationError {
+			labels: vec![CanonicalizationLabel::primary_without_span(
+				"found multiple matching files",
+			)],
+			notes: vec![
+				format!("matching files are:\n{matching_files_str}"),
+				"<TODO: link to docs>".to_string(),
+			],
+			..CanonicalizationError::main_message("ambiguous include file")
+		})
 	} else {
-		assert!(possible_files.len() == 1);
-		Ok(possible_files.into_iter().next().unwrap())
+		assert!(matching_files.len() == 1);
+		Ok(matching_files.into_iter().next().unwrap())
 	}
 }
 
@@ -44,65 +81,140 @@ pub fn substitute_placeholder(str: impl Into<String>, allow_file_var: bool) -> M
 
 	let home_dir = paths::get_home_dir().unwrap();
 	let home_dir = home_dir.to_str().unwrap();
-	let resolve_placeholder = |placeholder| match placeholder {
-		Placeholder::Tilde { idx: pos } => (pos..pos + 1, home_dir.to_string()),
-		Placeholder::BracketPair {
-			ty: BracketType::Square,
-			span,
-			inner_span,
-		} => (span, resolve_envvar_expr(&str[inner_span], allow_file_var)),
-		Placeholder::BracketPair {
-			ty: BracketType::Round,
-			span,
-			inner_span,
-		} => {
-			let resolved_expr = resolve_variable_expr(&str[inner_span], allow_file_var)
-				// preserve variables that need to be resolved later
-				.unwrap_or_else(|| str[span.clone()].to_string());
-			(span, resolved_expr)
-		}
+	let resolve_placeholder = |placeholder| {
+		Ok(match placeholder {
+			Placeholder::Tilde { idx: pos } => (pos..pos + 1, home_dir.to_string()),
+			Placeholder::BracketPair {
+				ty: BracketType::Square,
+				span,
+				inner_span,
+			} => {
+				let resolved_expr = resolve_envvar_expr(&str[inner_span.clone()], allow_file_var)
+					.map_err(|err| err.shift(inner_span.start))?;
+				(span, resolved_expr)
+			}
+			Placeholder::BracketPair {
+				ty: BracketType::Round,
+				span,
+				inner_span,
+			} => {
+				let resolved_expr = resolve_variable_expr(&str[inner_span.clone()], allow_file_var)
+					.map_err(|err| err.shift(inner_span.start))?
+					// preserve variables that need to be resolved later
+					.unwrap_or_else(|| str[span.clone()].to_string());
+				(span, resolved_expr)
+			}
+		})
 	};
 
-	let replacements = find_toplevel_placeholders(&str)
+	let replacements = find_toplevel_placeholders(&str)?
 		.into_iter()
-		.map(resolve_placeholder);
+		.map(resolve_placeholder)
+		.collect::<ModResult<Vec<_>>>()?;
 	let substituted_str = replace_multiple_ranges(&str, replacements);
 	Ok(substituted_str)
 }
-fn resolve_envvar_expr(expr: &str, allow_file_var: bool) -> String {
+fn resolve_envvar_expr(expr: &str, allow_file_var: bool) -> ModResult<String> {
 	let parts = expr.split(':').collect::<Vec<_>>();
 	assert!(!parts.is_empty());
 	if parts.len() > 2 {
-		panic!();
+		return Err(CanonicalizationError {
+			labels: vec![CanonicalizationLabel::primary_with_span(
+				0..expr.len(),
+				"at most two parts seperated by ':' are allowed",
+			)],
+			notes: vec!["<TODO: link to docs>".to_string()],
+			..CanonicalizationError::main_message("invalid environment variable expression")
+		});
 	}
 	let env_var_name = parts[0];
-	assert!(find_next_placeholder_poi(env_var_name).is_none());
 	let env_var_alt = parts.get(1);
 
+	if let Some(placeholder) = find_next_placeholder_poi(env_var_name) {
+		return Err(CanonicalizationError {
+			labels: vec![CanonicalizationLabel::primary_with_span(
+				placeholder.0,
+				"placeholders are not allowed here",
+			)],
+			notes: vec![
+				"if you wanted to use nested expressions, see here: <TODO: link to docs>".to_string(),
+			],
+			..CanonicalizationError::main_message("invalid environment variable expression")
+		});
+	}
+
 	match env::var(env_var_name) {
-		Ok(value) => value,
+		Ok(value) => Ok(value),
 		Err(env::VarError::NotPresent) if env_var_alt.is_some() => {
 			let env_var_alt = *env_var_alt.unwrap();
-			substitute_placeholder(env_var_alt, allow_file_var).unwrap()
+			substitute_placeholder(env_var_alt, allow_file_var)
+				.map_err(|err| err.shift(env_var_name.len() + 1))
 		}
-		Err(_) => panic!(),
+		Err(env::VarError::NotPresent) => Err(CanonicalizationError {
+			labels: vec![CanonicalizationLabel::primary_with_span(
+				0..env_var_name.len(),
+				"",
+			)],
+			..CanonicalizationError::main_message("environment variable not found")
+		}),
+		Err(env::VarError::NotUnicode(raw)) => Err(CanonicalizationError {
+			labels: vec![CanonicalizationLabel::primary_with_span(
+				0..env_var_name.len(),
+				format!("raw value: `{}`", raw.to_string_lossy()),
+			)],
+			..CanonicalizationError::main_message("environment variable was not valid UTF-8")
+		}),
 	}
 }
 // NOTE: returns None if the variable needs to be resolved
 //       at a later stage (e.g. $(FILE))
-fn resolve_variable_expr(expr: &str, allow_file_var: bool) -> Option<String> {
-	assert!(find_next_placeholder_poi(expr).is_none());
+fn resolve_variable_expr(expr: &str, allow_file_var: bool) -> ModResult<Option<String>> {
+	if let Some(placeholder) = find_next_placeholder_poi(expr) {
+		return Err(CanonicalizationError {
+			labels: vec![CanonicalizationLabel::primary_with_span(
+				placeholder.0,
+				"placeholders are not allowed inside variable expressions",
+			)],
+			..CanonicalizationError::main_message("invalid variable expression")
+		});
+	}
 
 	let path = match expr {
 		"CONFIG" => paths::get_xdg_config_dir().unwrap(),
 		"CACHE" => paths::get_xdg_cache_dir().unwrap(),
 		"DATA" => paths::get_xdg_data_dir().unwrap(),
 		"STATE" => paths::get_xdg_state_dir().unwrap(),
-		"FILE" if allow_file_var => return None,
-		_ => panic!(),
+		"FILE" if allow_file_var => return Ok(None),
+		var_name => {
+			let mut valid_variables = vec!["CONFIG", "CACHE", "DATA", "STATE"];
+			if allow_file_var {
+				valid_variables.push("FILE");
+			}
+			let valid_variables_str = valid_variables
+				.into_iter()
+				.map(|str| format!("`$({str})`"))
+				.collect::<Vec<_>>()
+				.join(", ");
+
+			let mut notes = vec![format!(
+				"supported variables are {valid_variables_str},\nsee <TODO: link docs> for further information"
+			)];
+			if !allow_file_var && var_name == "FILE" {
+				notes.push("$(FILE) can only be used in 'editor.cmd-with-file'".to_string());
+			}
+
+			return Err(CanonicalizationError {
+				labels: vec![CanonicalizationLabel::primary_with_span(
+					0..expr.len(),
+					"unknown variable",
+				)],
+				notes,
+				..CanonicalizationError::main_message("invalid variable expression")
+			});
+		}
 	};
 
-	Some(path.to_str().unwrap().to_string())
+	Ok(Some(path.to_str().unwrap().to_string()))
 }
 
 #[derive(Clone)]
@@ -121,7 +233,7 @@ enum BracketType {
 	Square,
 	Round,
 }
-fn find_toplevel_placeholders(str: &str) -> Vec<Placeholder> {
+fn find_toplevel_placeholders(str: &str) -> ModResult<Vec<Placeholder>> {
 	let mut placeholders = Vec::new();
 
 	let mut bracket_stack = Vec::new();
@@ -136,8 +248,28 @@ fn find_toplevel_placeholders(str: &str) -> Vec<Placeholder> {
 			PlaceholderPoI::Tilde => (),
 			PlaceholderPoI::Bracket { ty, opening: true } => bracket_stack.push((idx, ty)),
 			PlaceholderPoI::Bracket { ty, opening: false } => {
-				let matching_opening_bracket = bracket_stack.pop().unwrap();
-				assert!(matching_opening_bracket.1 == ty);
+				let Some(matching_opening_bracket) = bracket_stack.pop() else {
+					return Err(CanonicalizationError {
+						labels: vec![CanonicalizationLabel::primary_with_span(
+							idx..idx + 1,
+							"unmatched closing bracket",
+						)],
+						..CanonicalizationError::main_message("mismatched brackets")
+					});
+				};
+				if matching_opening_bracket.1 != ty {
+					return Err(CanonicalizationError {
+						labels: vec![
+							CanonicalizationLabel::primary_with_span(idx..idx + 1, "wrong closing bracket type"),
+							CanonicalizationLabel::secondary_with_span(
+								matching_opening_bracket.0..matching_opening_bracket.0 + 2,
+								"supposed opening bracket",
+							),
+						],
+						..CanonicalizationError::main_message("mismatched brackets")
+					});
+				}
+
 				if bracket_stack.is_empty() {
 					placeholders.push(Placeholder::BracketPair {
 						ty,
@@ -148,9 +280,18 @@ fn find_toplevel_placeholders(str: &str) -> Vec<Placeholder> {
 			}
 		}
 	}
-	assert!(bracket_stack.is_empty());
+	if !bracket_stack.is_empty() {
+		let last_unclosed_bracket = bracket_stack.last().unwrap();
+		return Err(CanonicalizationError {
+			labels: vec![CanonicalizationLabel::primary_with_span(
+				last_unclosed_bracket.0..last_unclosed_bracket.0 + 2,
+				"unmatched opening bracket",
+			)],
+			..CanonicalizationError::main_message("mismatched brackets")
+		});
+	}
 
-	placeholders
+	Ok(placeholders)
 }
 enum PlaceholderPoI {
 	Bracket { ty: BracketType, opening: bool },
