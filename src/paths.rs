@@ -72,7 +72,7 @@ pub fn get_home_dir() -> ModResult<PathBuf> {
 		Path::new(OsStr::from_bytes(home_dir_bytes)).to_path_buf()
 	};
 
-	if !home_dir_path.is_absolute() {
+	if home_dir_path.is_relative() {
 		return Err(Error::RelativeHomeDir);
 	}
 
