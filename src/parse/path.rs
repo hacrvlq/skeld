@@ -2,7 +2,7 @@ use std::{env, iter, ops::Range, path::PathBuf};
 
 use crate::{
 	parse::lib::{CanonicalizationError, CanonicalizationLabel},
-	paths,
+	paths, DOCS_URL,
 };
 
 type ModResult<T> = Result<T, CanonicalizationError>;
@@ -49,7 +49,9 @@ pub fn canonicalize_include_path(path: impl Into<String>) -> ModResult<PathBuf> 
 
 	if matching_files.is_empty() {
 		Err(CanonicalizationError {
-			notes: vec!["<TODO: link to docs>".to_string()],
+			notes: vec![format!(
+				"include files are searched in `<SKELD-DATA>/include`\n(see {DOCS_URL}#file-locations)"
+			)],
 			..CanonicalizationError::main_message("include file not found")
 		})
 	} else if matching_files.len() > 1 {
@@ -62,10 +64,7 @@ pub fn canonicalize_include_path(path: impl Into<String>) -> ModResult<PathBuf> 
 			labels: vec![CanonicalizationLabel::primary_without_span(
 				"found multiple matching files",
 			)],
-			notes: vec![
-				format!("matching files are:\n{matching_files_str}"),
-				"<TODO: link to docs>".to_string(),
-			],
+			notes: vec![format!("matching files are:\n{matching_files_str}")],
 			..CanonicalizationError::main_message("ambiguous include file")
 		})
 	} else {
@@ -123,7 +122,6 @@ fn resolve_envvar_expr(expr: &str, allow_file_var: bool) -> ModResult<String> {
 				0..expr.len(),
 				"at most two parts seperated by ':' are allowed",
 			)],
-			notes: vec!["<TODO: link to docs>".to_string()],
 			..CanonicalizationError::main_message("invalid environment variable expression")
 		});
 	}
@@ -136,9 +134,6 @@ fn resolve_envvar_expr(expr: &str, allow_file_var: bool) -> ModResult<String> {
 				placeholder.0,
 				"placeholders are not allowed here",
 			)],
-			notes: vec![
-				"if you wanted to use nested expressions, see here: <TODO: link to docs>".to_string(),
-			],
 			..CanonicalizationError::main_message("invalid environment variable expression")
 		});
 	}
@@ -197,7 +192,7 @@ fn resolve_variable_expr(expr: &str, allow_file_var: bool) -> ModResult<Option<S
 				.join(", ");
 
 			let mut notes = vec![format!(
-				"supported variables are {valid_variables_str},\nsee <TODO: link docs> for further information"
+				"supported variables are {valid_variables_str}\n(see {DOCS_URL}#string-interpolation)"
 			)];
 			if !allow_file_var && var_name == "FILE" {
 				notes.push("$(FILE) can only be used in 'editor.cmd-with-file'".to_string());
