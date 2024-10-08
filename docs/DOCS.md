@@ -35,23 +35,23 @@ auto-nixshell = true # Default: false
 no-sandbox = true # Default: false
 
 # whitelist paths read-write
-whitelists-rw = [
+whitelist-rw = [
   # some string interpolation is supported (see #String-Interpolation)
   "$(DATA)/nvim",
 ]
 # whitelist paths read-only
-whitelists-ro = [ "..." ]
+whitelist-ro = [ "..." ]
 # whitelist paths allowing device access
-whitelists-dev = [ "..." ]
+whitelist-dev = [ "..." ]
 # whitelist symlinks (copies symlinks as-is into the sandbox)
-whitelists-ln = [ "..." ]
+whitelist-ln = [ "..." ]
 # mount a tmpfs to the specified paths
 add-tmpfs = [ "..." ]
 
 # if 'whitelist-all-envvars' is true, all environment variables remain accessible;
-# otherwise only the variables in 'whitelists-envvar' are transferred into the sandbox
+# otherwise only the variables in 'whitelist-envvar' are transferred into the sandbox
 whitelist-all-envvars = true # Default: false
-whitelists-envvar = [ "..." ]
+whitelist-envvar = [ "..." ]
 
 # include options from other files
 # NOTE: circular includes are allowed

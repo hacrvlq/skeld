@@ -100,7 +100,7 @@ pub struct PrelimParseState {
 	initial_file: StringOption,
 	editor: EditorCommandOption,
 	virtual_fs: VirtualFSOption,
-	whitelists_envvars: ArrayOption<String>,
+	whitelist_envvars: ArrayOption<String>,
 	whitelist_all_envvars: BoolOption,
 	auto_nixshell: BoolOption,
 	disable_sandbox: BoolOption,
@@ -116,7 +116,7 @@ impl PrelimParseState {
 			}),
 			editor: EditorCommandOption::new(),
 			virtual_fs: VirtualFSOption::new(),
-			whitelists_envvars: ArrayOption::new("whitelists-envvar", true, |value| {
+			whitelist_envvars: ArrayOption::new("whitelist-envvar", true, |value| {
 				let value = value.as_str()?;
 				Ok(value.to_string())
 			}),
@@ -134,7 +134,7 @@ impl PrelimParseState {
 		let editor = self.editor.value.ok_or("editor")?.0;
 		let fs_tree = self.virtual_fs.tree;
 		let whitelist_all_envvars = self.whitelist_all_envvars.get_value().unwrap_or_default();
-		let whitelist_envvars = self.whitelists_envvars.get_value().unwrap_or_default();
+		let whitelist_envvars = self.whitelist_envvars.get_value().unwrap_or_default();
 		let auto_nixshell = self.auto_nixshell.get_value().unwrap_or_default();
 		let disable_sandbox = self.disable_sandbox.get_value().unwrap_or_default();
 
@@ -183,7 +183,7 @@ impl PrelimParseState {
 			self.initial_file,
 			self.editor,
 			self.virtual_fs,
-			self.whitelists_envvars,
+			self.whitelist_envvars,
 			self.whitelist_all_envvars,
 			self.auto_nixshell,
 			self.disable_sandbox
@@ -210,13 +210,13 @@ impl VirtualFSOption {
 impl parse_lib::ConfigOption for VirtualFSOption {
 	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool> {
 		let fs_entry_type;
-		if key.name() == "whitelists-dev" {
+		if key.name() == "whitelist-dev" {
 			fs_entry_type = VirtualFSEntryType::AllowDev;
-		} else if key.name() == "whitelists-rw" {
+		} else if key.name() == "whitelist-rw" {
 			fs_entry_type = VirtualFSEntryType::ReadWrite;
-		} else if key.name() == "whitelists-ro" {
+		} else if key.name() == "whitelist-ro" {
 			fs_entry_type = VirtualFSEntryType::ReadOnly;
-		} else if key.name() == "whitelists-ln" {
+		} else if key.name() == "whitelist-ln" {
 			fs_entry_type = VirtualFSEntryType::Symlink;
 		} else if key.name() == "add-tmpfs" {
 			fs_entry_type = VirtualFSEntryType::Tmpfs;

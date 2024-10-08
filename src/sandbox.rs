@@ -103,7 +103,7 @@ fn get_virtual_fs_args(fs_tree: &VirtualFSTree<()>) -> Result<Vec<OsString>, Box
 			VirtualFSEntryType::AllowDev => {
 				if path.is_symlink() {
 					return Err(
-						"Error: cannot use whitelists-dev for symlinks, use whitelists-ln instead".into(),
+						"Error: cannot use whitelist-dev for symlinks, use whitelist-ln instead".into(),
 					);
 				}
 				vec!["--dev-bind-try".into(), path.clone().into(), path.into()]
@@ -111,7 +111,7 @@ fn get_virtual_fs_args(fs_tree: &VirtualFSTree<()>) -> Result<Vec<OsString>, Box
 			VirtualFSEntryType::ReadWrite => {
 				if path.is_symlink() {
 					return Err(
-						"Error: cannot use whitelists-rw for symlinks, use whitelists-ln instead".into(),
+						"Error: cannot use whitelist-rw for symlinks, use whitelist-ln instead".into(),
 					);
 				}
 				vec!["--bind-try".into(), path.clone().into(), path.into()]
@@ -119,7 +119,7 @@ fn get_virtual_fs_args(fs_tree: &VirtualFSTree<()>) -> Result<Vec<OsString>, Box
 			VirtualFSEntryType::ReadOnly => {
 				if path.is_symlink() {
 					return Err(
-						"Error: cannot use whitelists-ro for symlinks, use whitelists-ln instead".into(),
+						"Error: cannot use whitelist-ro for symlinks, use whitelist-ln instead".into(),
 					);
 				}
 				vec!["--ro-bind-try".into(), path.clone().into(), path.into()]

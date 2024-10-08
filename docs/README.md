@@ -18,12 +18,12 @@ The paths that the sandbox can access are defined on a per-project basis:
 
 project-dir = "~/dev/skeld"
 # paths can be whitelisted read-only
-whitelists-ro = [
+whitelist-ro = [
   # some string interpolation is supported (see DOCS.md#String-Interpolation)
   "$(CONFIG)/nvim",
 ]
 # paths can be whitelisted read-write
-whitelists-rw = [
+whitelist-rw = [
   "$(DATA)/nvim",
   "$(STATE)/nvim",
 ]
@@ -64,12 +64,12 @@ detach = false
 # user-wide whitelists
 [project]
 # read-write whitelists
-whitelists-rw = [
+whitelist-rw = [
   "$(DATA)/nvim",
   "$(STATE)/nvim",
 ]
 # read-only whitelists
-whitelists-ro = [
+whitelist-ro = [
   "~/.bashrc",
   "$(CONFIG)/nvim",
 
@@ -78,8 +78,8 @@ whitelists-ro = [
 ]
 # symlink whitelists
 # NOTE: depending on the system, these may not be symlinks;
-#       so they may need to be in 'whitelists-ro'
-whitelists-ln = [
+#       so they may need to be in 'whitelist-ro'
+whitelist-ln = [
   "/bin",
   "/lib",
   "/lib64",
@@ -113,7 +113,7 @@ project-dir = "<your_project_directory>"
 initial-file = "src/main.rs"
 
 # project-specific whitelists
-whitelists-dev = [
+whitelist-dev = [
   "/dev/dri/",
 ]
 # Language-specific whitelists can be separated into different a file.
