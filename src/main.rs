@@ -1,18 +1,18 @@
 mod add_subcommand;
 mod error;
-mod launch_subcommand;
 mod parse;
 mod paths;
 mod project;
 mod sandbox;
+mod ui_subcommand;
 
 use std::{path::PathBuf, process::ExitCode};
 
 use clap::Parser as _;
 
 use crate::{
-	launch_subcommand::{tui, CommandData},
 	parse::ParseContext,
+	ui_subcommand::{tui, CommandData},
 };
 
 pub use error::{GenericError, GenericResult};
@@ -23,12 +23,12 @@ pub const DOCS_URL: &str = "https://github.com/hacrvlq/skeld/blob/v0.3.0/docs/DO
 #[command(version, about = "Open projects in a restricted sandbox")]
 struct CliArgs {
 	#[command(subcommand)]
-	subcommand: Option<CliSubcommands>,
+	subcommand: CliSubcommands,
 }
 #[derive(clap::Subcommand)]
 enum CliSubcommands {
-	/// Launch the skeld tui (Default Command)
-	Launch,
+	/// Open the skeld tui
+	Ui,
 	/// Add a project
 	Add(AddArgs),
 }
@@ -60,9 +60,8 @@ fn try_main(file_database: &mut parse::FileDatabase) -> GenericResult<ExitCode> 
 	let mut parse_ctx = ParseContext { file_database };
 	let config = parse_ctx.get_global_config()?;
 
-	let subcommand = args.subcommand.unwrap_or(CliSubcommands::Launch);
-	match subcommand {
-		CliSubcommands::Launch => launch_subcommand::run(&mut parse_ctx, config),
+	match args.subcommand {
+		CliSubcommands::Ui => ui_subcommand::run(&mut parse_ctx, config),
 		CliSubcommands::Add(args) => {
 			add_subcommand::run(args)?;
 			Ok(ExitCode::SUCCESS)

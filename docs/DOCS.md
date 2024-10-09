@@ -13,8 +13,8 @@
 Usage: skeld [COMMAND]
 
 Commands:
-  launch  Launch the skeld tui (Default Command)
-  add     Add a project
+  ui    Open the skeld tui
+  add   Add a project
 
 (Use `skeld --help` to show all options)
 ```

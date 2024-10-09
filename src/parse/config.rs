@@ -10,7 +10,7 @@ use super::{
 	ModResult, ParseContext,
 };
 use crate::{
-	launch_subcommand::{tui, Command, CommandData},
+	ui_subcommand::{tui, Command, CommandData},
 	GlobalConfig,
 };
 
