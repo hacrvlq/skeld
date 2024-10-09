@@ -57,19 +57,9 @@ pub fn get_skeld_data_dirs() -> ModResult<Vec<PathBuf>> {
 }
 
 pub fn get_home_dir() -> ModResult<PathBuf> {
-	let home_dir_path = if let Some(home_dir) = env::var_os("HOME") {
-		home_dir.into()
-	} else {
-		let passwd_ptr = unsafe { libc::getpwuid(libc::getuid()) };
-		if passwd_ptr.is_null() {
-			return Err(Error::UnknownHomeDir);
-		}
-		let home_dir = unsafe { *passwd_ptr }.pw_dir;
-		if home_dir.is_null() {
-			return Err(Error::UnknownHomeDir);
-		}
-		let home_dir_bytes = unsafe { CStr::from_ptr(home_dir) }.to_bytes();
-		Path::new(OsStr::from_bytes(home_dir_bytes)).to_path_buf()
+	let home_dir_path = match env::var_os("HOME") {
+		Some(val) if !val.is_empty() => val.into(),
+		_ => get_home_dir_from_passwd().ok_or(Error::UnknownHomeDir)?,
 	};
 
 	if home_dir_path.is_relative() {
@@ -77,4 +67,17 @@ pub fn get_home_dir() -> ModResult<PathBuf> {
 	}
 
 	Ok(home_dir_path)
+}
+fn get_home_dir_from_passwd() -> Option<PathBuf> {
+	let passwd_ptr = unsafe { libc::getpwuid(libc::getuid()) };
+	if passwd_ptr.is_null() {
+		return None;
+	}
+	let home_dir = unsafe { *passwd_ptr }.pw_dir;
+	if home_dir.is_null() {
+		return None;
+	}
+	let home_dir_bytes = unsafe { CStr::from_ptr(home_dir) }.to_bytes();
+	let home_dir_path = Path::new(OsStr::from_bytes(home_dir_bytes)).to_path_buf();
+	Some(home_dir_path)
 }
