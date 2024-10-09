@@ -114,19 +114,9 @@ pub fn substitute_placeholder(str: impl Into<String>, allow_file_var: bool) -> M
 	Ok(substituted_str)
 }
 fn resolve_envvar_expr(expr: &str, allow_file_var: bool) -> ModResult<String> {
-	let parts = expr.split(':').collect::<Vec<_>>();
-	assert!(!parts.is_empty());
-	if parts.len() > 2 {
-		return Err(CanonicalizationError {
-			labels: vec![CanonicalizationLabel::primary_with_span(
-				0..expr.len(),
-				"at most two parts seperated by ':' are allowed",
-			)],
-			..CanonicalizationError::main_message("invalid environment variable expression")
-		});
-	}
-	let env_var_name = parts[0];
-	let env_var_alt = parts.get(1);
+	let first_colon = expr.find(':');
+	let env_var_name = first_colon.map(|pos| &expr[..pos]).unwrap_or(expr);
+	let env_var_alt = first_colon.map(|pos| &expr[pos + 1..]);
 
 	if let Some(placeholder) = find_next_placeholder_poi(env_var_name) {
 		return Err(CanonicalizationError {
@@ -141,7 +131,7 @@ fn resolve_envvar_expr(expr: &str, allow_file_var: bool) -> ModResult<String> {
 	match env::var(env_var_name) {
 		Ok(value) => Ok(value),
 		Err(env::VarError::NotPresent) if env_var_alt.is_some() => {
-			let env_var_alt = *env_var_alt.unwrap();
+			let env_var_alt = env_var_alt.unwrap();
 			substitute_placeholder(env_var_alt, allow_file_var)
 				.map_err(|err| err.shift(env_var_name.len() + 1))
 		}
