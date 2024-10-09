@@ -59,7 +59,6 @@ name = "<quit>"
 keybind = "q"
 # if 'command' is empty, skeld quits immediatly
 command = []
-detach = false
 
 # user-wide whitelists
 [project]

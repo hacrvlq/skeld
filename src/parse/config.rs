@@ -75,22 +75,29 @@ fn parse_command_data(value: &TomlValue) -> ModResult<CommandData> {
 	let mut detach = BoolOption::new("detach");
 
 	parse_lib::parse_table!(&table => [name, keybind, command, detach])?;
+	let name = name
+		.get_value()
+		.ok_or_else(|| diagnostics::missing_option(value.loc(), "name"))?;
+	let keybind = keybind
+		.get_value()
+		.ok_or_else(|| diagnostics::missing_option(value.loc(), "name"))?;
+	let command = command
+		.get_value()
+		.ok_or_else(|| diagnostics::missing_option(value.loc(), "command"))?;
+	// detach' is useless if 'command' is empty,
+	// as skeld will quit immediately in this case
+	let detach = if command.is_empty() {
+		detach.get_value().unwrap_or(false)
+	} else {
+		detach
+			.get_value()
+			.ok_or_else(|| diagnostics::missing_option(value.loc(), "detach"))?
+	};
 
 	Ok(CommandData {
-		name: name
-			.get_value()
-			.ok_or_else(|| diagnostics::missing_option(value.loc(), "name"))?,
-		keybind: keybind
-			.get_value()
-			.ok_or_else(|| diagnostics::missing_option(value.loc(), "name"))?,
-		command: Command {
-			command: command
-				.get_value()
-				.ok_or_else(|| diagnostics::missing_option(value.loc(), "command"))?,
-			detach: detach
-				.get_value()
-				.ok_or_else(|| diagnostics::missing_option(value.loc(), "detach"))?,
-		},
+		name,
+		keybind,
+		command: Command { command, detach },
 	})
 }
 
