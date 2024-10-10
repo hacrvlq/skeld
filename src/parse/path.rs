@@ -1,8 +1,9 @@
 use std::{env, iter, ops::Range, path::PathBuf};
 
 use crate::{
+	dirs,
 	parse::lib::{CanonicalizationError, CanonicalizationLabel},
-	paths, DOCS_URL,
+	DOCS_URL,
 };
 
 type ModResult<T> = Result<T, CanonicalizationError>;
@@ -39,7 +40,7 @@ pub fn canonicalize_include_path(path: impl Into<String>) -> ModResult<PathBuf> 
 	};
 
 	let mut matching_files = Vec::new();
-	for data_root_dir in paths::get_skeld_data_dirs().unwrap() {
+	for data_root_dir in dirs::get_skeld_data_dirs().unwrap() {
 		let include_root_dir = data_root_dir.join("include");
 		let possible_file_path = include_root_dir.join(&path);
 		if possible_file_path.exists() {
@@ -78,7 +79,7 @@ pub fn canonicalize_include_path(path: impl Into<String>) -> ModResult<PathBuf> 
 pub fn substitute_placeholder(str: impl Into<String>, allow_file_var: bool) -> ModResult<String> {
 	let str = str.into();
 
-	let home_dir = paths::get_home_dir().unwrap();
+	let home_dir = dirs::get_home_dir().unwrap();
 	let home_dir = home_dir.to_str().unwrap();
 	let resolve_placeholder = |placeholder| {
 		Ok(match placeholder {
@@ -165,10 +166,10 @@ fn resolve_variable_expr(expr: &str, allow_file_var: bool) -> ModResult<Option<S
 	}
 
 	let path = match expr {
-		"CONFIG" => paths::get_xdg_config_dir().unwrap(),
-		"CACHE" => paths::get_xdg_cache_dir().unwrap(),
-		"DATA" => paths::get_xdg_data_dir().unwrap(),
-		"STATE" => paths::get_xdg_state_dir().unwrap(),
+		"CONFIG" => dirs::get_xdg_config_dir().unwrap(),
+		"CACHE" => dirs::get_xdg_cache_dir().unwrap(),
+		"DATA" => dirs::get_xdg_data_dir().unwrap(),
+		"STATE" => dirs::get_xdg_state_dir().unwrap(),
 		"FILE" if allow_file_var => return Ok(None),
 		var_name => {
 			let mut valid_variables = vec!["CONFIG", "CACHE", "DATA", "STATE"];

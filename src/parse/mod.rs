@@ -9,7 +9,7 @@ use std::{
 };
 
 use self::lib::{self as parse_lib, diagnostics, StringOption, TomlKey, TomlValue};
-use crate::{paths, GlobalConfig};
+use crate::{dirs, GlobalConfig};
 
 pub use self::{
 	lib::{Diagnostic, FileDatabase},
@@ -37,7 +37,7 @@ pub struct ParseContext<'a> {
 }
 impl ParseContext<'_> {
 	pub fn get_global_config(&mut self) -> ModResult<GlobalConfig> {
-		let global_config_file_path = paths::get_skeld_config_dir()
+		let global_config_file_path = dirs::get_skeld_config_dir()
 			.map_err(|err| format!("{err}"))?
 			.join("config.toml");
 		if !global_config_file_path.exists() {
@@ -47,7 +47,7 @@ impl ParseContext<'_> {
 	}
 	pub fn get_projects(&mut self) -> ModResult<Vec<ProjectButtonData>> {
 		let mut projects = Vec::new();
-		for data_root_dir in paths::get_skeld_data_dirs().map_err(|err| format!("{err}"))? {
+		for data_root_dir in dirs::get_skeld_data_dirs().map_err(|err| format!("{err}"))? {
 			let projects_root_dir = data_root_dir.join("projects");
 			projects.append(&mut self.read_projects_from_dir(projects_root_dir)?);
 		}
@@ -77,7 +77,7 @@ impl ParseContext<'_> {
 	}
 	pub fn get_bookmarks(&mut self) -> ModResult<Vec<BookmarkData>> {
 		let mut bookmarks = Vec::new();
-		for data_root_dir in paths::get_skeld_data_dirs().map_err(|err| format!("{err}"))? {
+		for data_root_dir in dirs::get_skeld_data_dirs().map_err(|err| format!("{err}"))? {
 			let bookmarks_dir = data_root_dir.join("bookmarks/");
 			bookmarks.append(&mut self.read_bookmarks_from_dir(bookmarks_dir)?);
 		}

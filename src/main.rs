@@ -1,7 +1,7 @@
 mod add_subcommand;
+mod dirs;
 mod error;
 mod parse;
-mod paths;
 mod project;
 mod sandbox;
 mod ui_subcommand;

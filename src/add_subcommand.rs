@@ -9,7 +9,7 @@ use std::{
 	process::Command,
 };
 
-use crate::{paths, AddArgs};
+use crate::{dirs, AddArgs};
 
 type ModResult<T> = Result<T, Box<dyn Error>>;
 
@@ -43,7 +43,7 @@ pub fn run(args: AddArgs) -> ModResult<()> {
 		)
 	};
 
-	let projects_dir = paths::get_skeld_data_dir()?.join("projects");
+	let projects_dir = dirs::get_skeld_data_dir()?.join("projects");
 	fs::create_dir_all(&projects_dir)
 		.map_err(|err| format!("Failed to create skeld projects directory: {err}"))?;
 
@@ -91,15 +91,15 @@ fn normalize_path_prefix(path: impl AsRef<Path>) -> PathBuf {
 		}
 	};
 
-	if let Some(path) = handle_prefix(paths::get_xdg_config_dir().ok(), "$(CONFIG)") {
+	if let Some(path) = handle_prefix(dirs::get_xdg_config_dir().ok(), "$(CONFIG)") {
 		path
-	} else if let Some(path) = handle_prefix(paths::get_xdg_cache_dir().ok(), "$(CACHE)") {
+	} else if let Some(path) = handle_prefix(dirs::get_xdg_cache_dir().ok(), "$(CACHE)") {
 		path
-	} else if let Some(path) = handle_prefix(paths::get_xdg_data_dir().ok(), "$(DATA)") {
+	} else if let Some(path) = handle_prefix(dirs::get_xdg_data_dir().ok(), "$(DATA)") {
 		path
-	} else if let Some(path) = handle_prefix(paths::get_xdg_state_dir().ok(), "$(STATE)") {
+	} else if let Some(path) = handle_prefix(dirs::get_xdg_state_dir().ok(), "$(STATE)") {
 		path
-	} else if let Some(path) = handle_prefix(paths::get_home_dir().ok(), "~") {
+	} else if let Some(path) = handle_prefix(dirs::get_home_dir().ok(), "~") {
 		path
 	} else {
 		path.to_path_buf()
