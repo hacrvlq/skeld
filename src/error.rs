@@ -19,9 +19,7 @@ impl GenericError {
 	pub fn print(&self, files: &FileDatabase) {
 		match self {
 			GenericError::Diagnostic(diag) => Self::print_diagnostic(diag, files),
-			GenericError::Generic(msg) => {
-				Self::print_diagnostic(&Diagnostic::error().with_message(msg.to_string()), files)
-			}
+			GenericError::Generic(msg) => eprintln!("{msg}"),
 		}
 	}
 	fn print_diagnostic(diag: &Diagnostic, files: &FileDatabase) {
