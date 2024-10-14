@@ -38,7 +38,7 @@ pub struct ParseContext<'a> {
 impl ParseContext<'_> {
 	pub fn get_global_config(&mut self) -> ModResult<GlobalConfig> {
 		let global_config_file_path = dirs::get_skeld_config_dir()
-			.map_err(|err| format!("{err}"))?
+			.map_err(|err| format!("Failed to determine the skeld config dir:\n  {err}"))?
 			.join("config.toml");
 		if !global_config_file_path.exists() {
 			return Ok(config::default_config());
@@ -47,7 +47,9 @@ impl ParseContext<'_> {
 	}
 	pub fn get_projects(&mut self) -> ModResult<Vec<ProjectButtonData>> {
 		let mut projects = Vec::new();
-		for data_root_dir in dirs::get_skeld_data_dirs().map_err(|err| format!("{err}"))? {
+		let skeld_data_dirs = dirs::get_skeld_data_dirs()
+			.map_err(|err| format!("Failed to determine the skeld data directories:\n  {err}"))?;
+		for data_root_dir in skeld_data_dirs {
 			let projects_root_dir = data_root_dir.join("projects");
 			projects.append(&mut self.read_projects_from_dir(projects_root_dir)?);
 		}
@@ -77,7 +79,9 @@ impl ParseContext<'_> {
 	}
 	pub fn get_bookmarks(&mut self) -> ModResult<Vec<BookmarkData>> {
 		let mut bookmarks = Vec::new();
-		for data_root_dir in dirs::get_skeld_data_dirs().map_err(|err| format!("{err}"))? {
+		let skeld_data_dirs = dirs::get_skeld_data_dirs()
+			.map_err(|err| format!("Failed to determine the skeld data directories:\n  {err}"))?;
+		for data_root_dir in skeld_data_dirs {
 			let bookmarks_dir = data_root_dir.join("bookmarks/");
 			bookmarks.append(&mut self.read_bookmarks_from_dir(bookmarks_dir)?);
 		}

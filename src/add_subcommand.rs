@@ -43,7 +43,9 @@ pub fn run(args: AddArgs) -> ModResult<()> {
 		)
 	};
 
-	let projects_dir = dirs::get_skeld_data_dir()?.join("projects");
+	let projects_dir = dirs::get_skeld_data_dir()
+		.map_err(|err| format!("Failed to determine the skeld data directory:\n  {err}"))?
+		.join("projects");
 	fs::create_dir_all(&projects_dir)
 		.map_err(|err| format!("Failed to create skeld projects directory: {err}"))?;
 

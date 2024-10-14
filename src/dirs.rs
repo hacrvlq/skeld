@@ -10,10 +10,16 @@ use std::{
 pub enum Error {
 	#[display("home directory could not be determined")]
 	UnknownHomeDir,
-	#[display("home directory has to be absolute")]
-	RelativeHomeDir,
-	#[display("{name} must be absolute")]
-	RelativeXdgBaseDir { name: String },
+	#[display(
+		"home directory must be absolute, but has been set to: `{}`",
+		dir.display()
+	)]
+	RelativeHomeDir { dir: PathBuf },
+	#[display(
+		"`{varname}` must be absolute, but has been set to: `{}`",
+		dir.display()
+	)]
+	RelativeXdgBaseDir { varname: String, dir: PathBuf },
 }
 impl std::error::Error for Error {}
 type ModResult<T> = Result<T, Error>;
@@ -36,7 +42,8 @@ fn get_xdg_base_dir(env_var: &str, fallback: &str) -> ModResult<PathBuf> {
 			let path: PathBuf = env_var_val.into();
 			if path.is_relative() {
 				Err(Error::RelativeXdgBaseDir {
-					name: env_var.to_string(),
+					varname: env_var.to_string(),
+					dir: path,
 				})
 			} else {
 				Ok(path)
@@ -63,7 +70,7 @@ pub fn get_home_dir() -> ModResult<PathBuf> {
 	};
 
 	if home_dir_path.is_relative() {
-		return Err(Error::RelativeHomeDir);
+		return Err(Error::RelativeHomeDir { dir: home_dir_path });
 	}
 
 	Ok(home_dir_path)

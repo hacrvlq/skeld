@@ -40,7 +40,11 @@ pub fn canonicalize_include_path(path: impl Into<String>) -> ModResult<PathBuf> 
 	};
 
 	let mut matching_files = Vec::new();
-	for data_root_dir in dirs::get_skeld_data_dirs().unwrap() {
+	let skeld_data_dirs = dirs::get_skeld_data_dirs().map_err(|err| CanonicalizationError {
+		notes: vec![err.to_string()],
+		..CanonicalizationError::main_message("could not determine the skeld data directories")
+	})?;
+	for data_root_dir in skeld_data_dirs {
 		let include_root_dir = data_root_dir.join("include");
 		let possible_file_path = include_root_dir.join(&path);
 		if possible_file_path.exists() {
@@ -79,11 +83,13 @@ pub fn canonicalize_include_path(path: impl Into<String>) -> ModResult<PathBuf> 
 pub fn substitute_placeholder(str: impl Into<String>, allow_file_var: bool) -> ModResult<String> {
 	let str = str.into();
 
-	let home_dir = dirs::get_home_dir().unwrap();
-	let home_dir = home_dir.to_str().unwrap();
 	let resolve_placeholder = |placeholder| {
 		Ok(match placeholder {
-			Placeholder::Tilde { idx: pos } => (pos..pos + 1, home_dir.to_string()),
+			Placeholder::Tilde { idx: pos } => {
+				let resolved_expr =
+					resolve_homedir_expr(&str[pos..pos + 1]).map_err(|err| err.shift(pos))?;
+				(pos..pos + 1, resolved_expr)
+			}
 			Placeholder::BracketPair {
 				ty: BracketType::Square,
 				span,
@@ -113,6 +119,25 @@ pub fn substitute_placeholder(str: impl Into<String>, allow_file_var: bool) -> M
 		.collect::<ModResult<Vec<_>>>()?;
 	let substituted_str = replace_multiple_ranges(&str, replacements);
 	Ok(substituted_str)
+}
+fn resolve_homedir_expr(expr: &str) -> ModResult<String> {
+	let home_dir_path =
+		dirs::get_home_dir().map_err(|err| convert_dirs_err(err, 0..expr.len(), None))?;
+	let home_dir_str = home_dir_path
+		.to_str()
+		.ok_or_else(|| CanonicalizationError {
+			labels: vec![CanonicalizationLabel::primary_with_span(
+				0..expr.len(),
+				"required from here",
+			)],
+			notes: vec![format!(
+				"home directory path contains invalid UTF-8: `{}`",
+				home_dir_path.display()
+			)],
+			..CanonicalizationError::main_message("invalid home directory path")
+		})?
+		.to_string();
+	Ok(home_dir_str)
 }
 fn resolve_envvar_expr(expr: &str, allow_file_var: bool) -> ModResult<String> {
 	let first_colon = expr.find(':');
@@ -165,42 +190,105 @@ fn resolve_variable_expr(expr: &str, allow_file_var: bool) -> ModResult<Option<S
 		});
 	}
 
-	let path = match expr {
-		"CONFIG" => dirs::get_xdg_config_dir().unwrap(),
-		"CACHE" => dirs::get_xdg_cache_dir().unwrap(),
-		"DATA" => dirs::get_xdg_data_dir().unwrap(),
-		"STATE" => dirs::get_xdg_state_dir().unwrap(),
-		"FILE" if allow_file_var => return Ok(None),
-		var_name => {
-			let mut valid_variables = vec!["CONFIG", "CACHE", "DATA", "STATE"];
-			if allow_file_var {
-				valid_variables.push("FILE");
-			}
-			let valid_variables_str = valid_variables
-				.into_iter()
-				.map(|str| format!("`$({str})`"))
-				.collect::<Vec<_>>()
-				.join(", ");
+	type XdgDirFn = fn() -> Result<PathBuf, dirs::Error>;
+	let dir_exprs = [
+		("CONFIG", dirs::get_xdg_config_dir as XdgDirFn),
+		("CACHE", dirs::get_xdg_cache_dir),
+		("DATA", dirs::get_xdg_data_dir),
+		("STATE", dirs::get_xdg_state_dir),
+	];
+	for (varname, resolve_fn) in dir_exprs {
+		if expr != varname {
+			continue;
+		}
 
-			let mut notes = vec![format!(
-				"supported variables are {valid_variables_str}\n(see {DOCS_URL}#string-interpolation)"
-			)];
-			if !allow_file_var && var_name == "FILE" {
-				notes.push("$(FILE) can only be used in 'editor.cmd-with-file'".to_string());
-			}
-
-			return Err(CanonicalizationError {
+		let dirname = varname.to_lowercase();
+		let resolved_expr_path =
+			resolve_fn().map_err(|err| convert_dirs_err(err, 0..expr.len(), Some(&dirname)))?;
+		let resolved_expr_str = resolved_expr_path
+			.to_str()
+			.ok_or_else(|| CanonicalizationError {
 				labels: vec![CanonicalizationLabel::primary_with_span(
 					0..expr.len(),
-					"unknown variable",
+					"required from here",
 				)],
-				notes,
-				..CanonicalizationError::main_message("invalid variable expression")
-			});
-		}
-	};
+				notes: vec![format!(
+					"the {dirname} directory path contains invalid UTF-8: `{}`",
+					resolved_expr_path.display(),
+				)],
+				..CanonicalizationError::main_message(format!("invalid {dirname} directory path"))
+			})?;
+		return Ok(Some(resolved_expr_str.to_string()));
+	}
 
-	Ok(Some(path.to_str().unwrap().to_string()))
+	if allow_file_var && expr == "FILE" {
+		return Ok(None);
+	}
+
+	// unknown variable
+	{
+		let mut valid_variables = vec!["CONFIG", "CACHE", "DATA", "STATE"];
+		if allow_file_var {
+			valid_variables.push("FILE");
+		}
+		let valid_variables_str = valid_variables
+			.into_iter()
+			.map(|str| format!("`$({str})`"))
+			.collect::<Vec<_>>()
+			.join(", ");
+
+		let mut notes = vec![format!(
+			"supported variables are {valid_variables_str}\n(see {DOCS_URL}#string-interpolation)"
+		)];
+		if !allow_file_var && expr == "FILE" {
+			notes.push("$(FILE) can only be used in 'editor.cmd-with-file'".to_string());
+		}
+
+		Err(CanonicalizationError {
+			labels: vec![CanonicalizationLabel::primary_with_span(
+				0..expr.len(),
+				"unknown variable",
+			)],
+			notes,
+			..CanonicalizationError::main_message("unknown variable expression")
+		})
+	}
+}
+fn convert_dirs_err(
+	err: dirs::Error,
+	span: Range<usize>,
+	xdg_dirname: Option<&str>,
+) -> CanonicalizationError {
+	let error_labels = vec![CanonicalizationLabel::primary_with_span(
+		span,
+		"required from here",
+	)];
+
+	match err {
+		dirs::Error::UnknownHomeDir => CanonicalizationError {
+			labels: error_labels.clone(),
+			notes: vec![concat!(
+				"The home directory is first looked up in `$HOME`,\n",
+				"and then in `/etc/passwd` if `$HOME` does not exist."
+			)
+			.to_string()],
+			..CanonicalizationError::main_message("could not determine the home directory")
+		},
+		dirs::Error::RelativeHomeDir { dir } => CanonicalizationError {
+			labels: error_labels.clone(),
+			notes: vec![dirs::Error::RelativeHomeDir { dir }.to_string()],
+			..CanonicalizationError::main_message("invalid home directory")
+		},
+		dirs::Error::RelativeXdgBaseDir { .. } if xdg_dirname.is_none() => unreachable!(),
+		dirs::Error::RelativeXdgBaseDir { varname, dir } => {
+			let xdg_dirname = xdg_dirname.unwrap();
+			CanonicalizationError {
+				labels: error_labels.clone(),
+				notes: vec![dirs::Error::RelativeXdgBaseDir { varname, dir }.to_string()],
+				..CanonicalizationError::main_message(format!("invalid {xdg_dirname} directory"))
+			}
+		}
+	}
 }
 
 #[derive(Clone)]

@@ -276,11 +276,13 @@ impl ConfigOption for StringOption {
 	}
 }
 
+#[derive(Clone)]
 pub struct CanonicalizationError {
 	pub main_message: String,
 	pub labels: Vec<CanonicalizationLabel>,
 	pub notes: Vec<String>,
 }
+#[derive(Clone)]
 pub struct CanonicalizationLabel {
 	pub ty: DiagLabelStyle,
 	pub span: Option<Range<usize>>,
