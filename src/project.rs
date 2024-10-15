@@ -38,7 +38,7 @@ impl ProjectData {
 			.get_command(self.project_dir.clone(), self.initial_file);
 		let use_nix_shell = self.auto_nixshell && detect_nix_shell_file(&self.project_dir);
 		let project_cmd = if use_nix_shell {
-			wrap_cmd_with_nix_shell(project_cmd)?
+			wrap_cmd_with_nix_shell(project_cmd)
 		} else {
 			project_cmd
 		};
@@ -56,7 +56,7 @@ impl EditorCommand {
 			self
 				.cmd_with_file
 				.into_iter()
-				.map(|arg| arg.replace("$(FILE)", &initial_file).into())
+				.map(|arg| arg.replace("$(FILE)", &initial_file))
 				.collect()
 		} else {
 			self.cmd_without_file.into_iter().map(Into::into).collect()
@@ -73,33 +73,19 @@ fn detect_nix_shell_file(project_path: impl AsRef<Path>) -> bool {
 	let project_path = project_path.as_ref();
 	project_path.join("shell.nix").exists() || project_path.join("default.nix").exists()
 }
-fn wrap_cmd_with_nix_shell(cmd: Command) -> Result<Command, Box<dyn Error>> {
-	let escaped_cmd = cmd
-		.cmd
-		.iter()
-		.map(|os_str| {
-			os_str.to_str().ok_or_else(|| {
-				format!(
-					"argument of command is invalid UTF-8 (`{}`)",
-					os_str.to_string_lossy()
-				)
-			})
-		})
-		.collect::<Result<Vec<_>, String>>()?
-		.into_iter()
-		.map(bash_string_escape)
-		.collect::<Vec<_>>();
+fn wrap_cmd_with_nix_shell(cmd: Command) -> Command {
+	let escaped_cmd = cmd.cmd.iter().map(bash_string_escape).collect::<Vec<_>>();
 	let wrapped_cmd = vec![
 		"nix-shell".to_string(),
 		"--command".to_string(),
 		escaped_cmd.join(" "),
 	];
 
-	Ok(Command {
-		cmd: wrapped_cmd.into_iter().map(|str| str.into()).collect(),
+	Command {
+		cmd: wrapped_cmd,
 		..cmd
-	})
+	}
 }
-fn bash_string_escape(str: &str) -> String {
-	format!("$'{}'", str.as_bytes().escape_ascii())
+fn bash_string_escape(str: impl Into<String>) -> String {
+	format!("$'{}'", str.into().as_bytes().escape_ascii())
 }

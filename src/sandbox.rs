@@ -25,7 +25,7 @@ pub enum EnvVarWhitelist {
 }
 #[derive(Clone, Debug)]
 pub struct Command {
-	pub cmd: Vec<OsString>,
+	pub cmd: Vec<String>,
 	pub working_dir: PathBuf,
 	pub detach: bool,
 }
