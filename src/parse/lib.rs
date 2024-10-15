@@ -14,6 +14,7 @@ use codespan_reporting::{
 use toml_span::Span;
 
 use super::ModResult;
+use crate::DOCS_URL;
 
 pub use codespan_reporting::diagnostic::Severity;
 pub use toml_span::value::ValueInner as TomlInnerValue;
@@ -397,7 +398,7 @@ impl<V> ConfigOption for ArrayOption<V> {
 }
 
 macro_rules! parse_table {
-	($table:expr => [$($opt:expr),*]) => {'blk: {
+	($table:expr => [$($opt:expr),*], docs-pref: $docs_pref:expr $(,)?) => {'blk: {
 		use $crate::parse::lib::*;
 		for (key, value) in $table.iter() {
 			let mut eaten = false;
@@ -413,7 +414,7 @@ macro_rules! parse_table {
 				}
 			)*
 			if !eaten {
-				break 'blk Result::Err(diagnostics::unknown_option(&key).into());
+				break 'blk Result::Err(diagnostics::unknown_option(&key, $docs_pref).into());
 			}
 		}
 		Ok(())
@@ -449,16 +450,20 @@ pub mod diagnostics {
 			.with_labels(err.labels.iter().map(convert_label).collect())
 			.with_notes(err.notes.clone())
 	}
-	pub fn missing_option(loc: &Location, missing: &str) -> Diagnostic {
+	pub fn missing_option(loc: &Location, missing: &str, docs_pref: &str) -> Diagnostic {
+		let docs_url = format!("{DOCS_URL}#{docs_pref}");
 		let label = loc.get_primary_label();
 		Diagnostic::new(Severity::Error)
 			.with_message(format!("missing config option `{missing}`"))
 			.with_labels(vec![label])
+			.with_notes(vec![format!("(see {docs_url})")])
 	}
-	pub fn unknown_option(key: &TomlKey) -> Diagnostic {
+	pub fn unknown_option(key: &TomlKey, docs_pref: impl Into<String>) -> Diagnostic {
+		let docs_url = format!("{DOCS_URL}#{}", docs_pref.into());
 		Diagnostic::new(Severity::Error)
 			.with_message("unknown config option")
 			.with_labels(vec![key.loc().get_primary_label()])
+			.with_notes(vec![format!("(see {docs_url} for supported options)")])
 	}
 	pub fn multiple_definitions(loc1: &Location, loc2: &Location, name: &str) -> Diagnostic {
 		let label1 = loc2.get_primary_label().with_message("redefined here");

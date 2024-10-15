@@ -37,9 +37,9 @@ impl ProjectDataFuture {
 		let parsed_contents = parse_lib::parse_toml_file(path, ctx.file_database, &mut outlivers)?;
 		parse_state.parse_table(&parsed_contents, ctx)?;
 
-		let project_data = parse_state
-			.into_project_data()
-			.map_err(|missing| diagnostics::missing_option(parsed_contents.loc(), &missing))?;
+		let project_data = parse_state.into_project_data().map_err(|missing| {
+			diagnostics::missing_option(parsed_contents.loc(), &missing, "project-data-format")
+		})?;
 		Ok(project_data)
 	}
 	fn parse_bookmark_file_stage2(
@@ -54,12 +54,17 @@ impl ProjectDataFuture {
 		let mut name = StringOption::new("name");
 		let mut keybind = StringOption::new("keybind");
 		let mut project_data = ProjectDataOption::new("project", parse_state, ctx);
-		parse_lib::parse_table!(&parsed_contents => [name, keybind, project_data])?;
 
+		let docs_pref = "bookmarks";
+		parse_lib::parse_table!(
+			&parsed_contents => [name, keybind, project_data],
+			docs-pref: docs_pref,
+		)?;
 		let project_data = project_data
 			.get_value()
 			.into_project_data()
-			.map_err(|missing| diagnostics::missing_option(parsed_contents.loc(), &missing))?;
+			.map_err(|missing| diagnostics::missing_option(parsed_contents.loc(), &missing, docs_pref))?;
+
 		Ok(project_data)
 	}
 }
@@ -177,17 +182,20 @@ impl PrelimParseState {
 				.map_err(|err| diagnostics::failed_canonicalization(raw_value, &err).into())
 		});
 
-		parse_lib::parse_table!(table => [
-			include_option,
-			self.project_dir,
-			self.initial_file,
-			self.editor,
-			self.virtual_fs,
-			self.whitelist_envvars,
-			self.whitelist_all_envvars,
-			self.auto_nixshell,
-			self.disable_sandbox
-		])?;
+		parse_lib::parse_table!(
+			table => [
+				include_option,
+				self.project_dir,
+				self.initial_file,
+				self.editor,
+				self.virtual_fs,
+				self.whitelist_envvars,
+				self.whitelist_all_envvars,
+				self.auto_nixshell,
+				self.disable_sandbox
+			],
+			docs-pref: "project-data-format",
+		)?;
 
 		for include_path in include_option.get_value().unwrap_or_default() {
 			self.parse_path(include_path, ctx)?;
@@ -240,7 +248,7 @@ impl parse_lib::ConfigOption for VirtualFSOption {
 				}) => {
 					let inner_path_label = inner_path
 						.get_primary_label()
-						.with_message("subpaths of symlink/tmpfs whitelist must not be whitelisted");
+						.with_message("subpaths of symlink/tmpfs whitelists must not be whitelisted");
 					let child_label = invalid_child
 						.get_secondary_label()
 						.with_message("but here a subpath is whitelisted");
@@ -296,21 +304,25 @@ impl parse_lib::ConfigOption for EditorCommandOption {
 		});
 		let mut detach = BoolOption::new("detach");
 
-		parse_lib::parse_table!(&table => [cmd_with_file, cmd_without_file, detach])?;
+		let docs_pref = "project-data-format";
+		parse_lib::parse_table!(
+			&table => [cmd_with_file, cmd_without_file, detach],
+			docs-pref: docs_pref,
+		)?;
 		let cmd_with_file = cmd_with_file
 			.get_value_with_loc()
-			.ok_or_else(|| diagnostics::missing_option(key.loc(), "cmd-with-file"))?;
+			.ok_or_else(|| diagnostics::missing_option(key.loc(), "cmd-with-file", docs_pref))?;
 		let cmd_without_file = cmd_without_file
 			.get_value_with_loc()
-			.ok_or_else(|| diagnostics::missing_option(key.loc(), "cmd-without-file"))?;
+			.ok_or_else(|| diagnostics::missing_option(key.loc(), "cmd-without-file", docs_pref))?;
 		let detach = detach
 			.get_value()
-			.ok_or_else(|| diagnostics::missing_option(key.loc(), "detach"))?;
+			.ok_or_else(|| diagnostics::missing_option(key.loc(), "detach", docs_pref))?;
 
 		let diagnostics_empty_command = |loc: parse_lib::Location| {
 			let label = loc
 				.get_primary_label()
-				.with_message("command cannot be empty");
+				.with_message("command must not be empty");
 			parse_lib::Diagnostic::new(parse_lib::Severity::Error)
 				.with_message("empty editor command")
 				.with_labels(vec![label])

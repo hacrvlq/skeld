@@ -53,7 +53,10 @@ pub fn parse_config_file(
 	let mut commands = ArrayOption::new("commands", false, parse_command_data);
 	let mut colorscheme = ColorschemeOption::new();
 	let mut banner = StringOption::new("banner");
-	parse_lib::parse_table!(&parsed_contents => [global_project_data, commands, colorscheme, banner])?;
+	parse_lib::parse_table!(
+		&parsed_contents => [global_project_data, commands, colorscheme, banner],
+		docs-pref: "configuration",
+	)?;
 
 	Ok(GlobalConfig {
 		commands: commands.get_value().unwrap_or_default(),
@@ -74,16 +77,20 @@ fn parse_command_data(value: &TomlValue) -> ModResult<CommandData> {
 	});
 	let mut detach = BoolOption::new("detach");
 
-	parse_lib::parse_table!(&table => [name, keybind, command, detach])?;
+	let docs_pref = "configuration";
+	parse_lib::parse_table!(
+		&table => [name, keybind, command, detach],
+		docs-pref: docs_pref,
+	)?;
 	let name = name
 		.get_value()
-		.ok_or_else(|| diagnostics::missing_option(value.loc(), "name"))?;
+		.ok_or_else(|| diagnostics::missing_option(value.loc(), "name", docs_pref))?;
 	let keybind = keybind
 		.get_value()
-		.ok_or_else(|| diagnostics::missing_option(value.loc(), "name"))?;
+		.ok_or_else(|| diagnostics::missing_option(value.loc(), "name", docs_pref))?;
 	let command = command
 		.get_value()
-		.ok_or_else(|| diagnostics::missing_option(value.loc(), "command"))?;
+		.ok_or_else(|| diagnostics::missing_option(value.loc(), "command", docs_pref))?;
 	// detach' is useless if 'command' is empty,
 	// as skeld will quit immediately in this case
 	let detach = if command.is_empty() {
@@ -91,7 +98,7 @@ fn parse_command_data(value: &TomlValue) -> ModResult<CommandData> {
 	} else {
 		detach
 			.get_value()
-			.ok_or_else(|| diagnostics::missing_option(value.loc(), "detach"))?
+			.ok_or_else(|| diagnostics::missing_option(value.loc(), "detach", docs_pref))?
 	};
 
 	Ok(CommandData {
@@ -124,7 +131,10 @@ fn parse_colorscheme(value: &TomlValue) -> ModResult<tui::Colorscheme> {
 	let mut heading = ColorOption::new("heading");
 	let mut keybind = ColorOption::new("keybind");
 	let mut button_label = ColorOption::new("label");
-	parse_lib::parse_table!(table => [neutral, banner, heading, keybind, button_label])?;
+	parse_lib::parse_table!(
+		table => [neutral, banner, heading, keybind, button_label],
+		docs-pref: "configuration",
+	)?;
 
 	let mut resulting_colorscheme = DEFAULT_COLORSCHEME;
 	macro_rules! handle_color_option {
@@ -163,7 +173,7 @@ fn parse_tui_color(value: &TomlValue) -> ModResult<tui::Color> {
 			let label = value
 				.loc()
 				.get_primary_label()
-				.with_message("expected #RRGGBB");
+				.with_message("expected format is #RRGGBB");
 			Diagnostic::new(parse_lib::Severity::Error)
 				.with_message("invalid hex color")
 				.with_labels(vec![label])
@@ -178,6 +188,9 @@ fn parse_tui_color(value: &TomlValue) -> ModResult<tui::Color> {
 			Diagnostic::new(parse_lib::Severity::Error)
 				.with_message("invalid ansi color")
 				.with_labels(vec![label])
+				.with_notes(vec![
+					"(see https://en.wikipedia.org/wiki/ANSI_escape_code#8-bit)".to_string(),
+				])
 		})?;
 		Ok(tui::Color::AnsiValue(ansi_val))
 	} else {
@@ -194,16 +207,12 @@ fn parse_tui_color(value: &TomlValue) -> ModResult<tui::Color> {
 	}
 }
 fn parse_hex_color(str: &str) -> Option<tui::Color> {
-	if !str.starts_with('#') {
+	if !str.starts_with('#') || str.len() != 7 {
 		return None;
 	}
 	let str = &str[1..];
 
 	let num = i64::from_str_radix(str, 16).ok()?;
-	if !(0..(1 << (4 * 8))).contains(&num) {
-		return None;
-	}
-
 	let r = ((num >> 16) & 0xFF) as u8;
 	let g = ((num >> 8) & 0xFF) as u8;
 	let b = (num & 0xFF) as u8;
