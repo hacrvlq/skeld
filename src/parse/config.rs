@@ -207,15 +207,15 @@ fn parse_tui_color(value: &TomlValue) -> ModResult<tui::Color> {
 	}
 }
 fn parse_hex_color(str: &str) -> Option<tui::Color> {
-	if !str.starts_with('#') || str.len() != 7 {
+	if str.len() != 7 || !str.starts_with('#') || str.chars().nth(1).unwrap() == '+' {
 		return None;
 	}
 	let str = &str[1..];
 
-	let num = i64::from_str_radix(str, 16).ok()?;
-	let r = ((num >> 16) & 0xFF) as u8;
-	let g = ((num >> 8) & 0xFF) as u8;
-	let b = (num & 0xFF) as u8;
+	let num = u64::from_str_radix(str, 16).ok()?;
+	let r = (num >> 16) as u8;
+	let g = (num >> 8) as u8;
+	let b = num as u8;
 
 	Some(tui::Color::Rgb { r, g, b })
 }
