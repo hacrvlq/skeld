@@ -6,7 +6,7 @@ use std::{
 	io::{self, Write as _},
 	os::unix::ffi::OsStringExt as _,
 	path::{Path, PathBuf},
-	process::Command,
+	process::{self, Command},
 };
 
 use crate::{dirs, AddArgs};
@@ -16,7 +16,7 @@ type ModResult<T> = Result<T, Box<dyn Error>>;
 pub fn run(args: AddArgs) -> ModResult<()> {
 	let project_path = args.project_path.canonicalize().map_err(|err| {
 		format!(
-			"Failed to read path `{}`: {err}",
+			"Failed to canonicalize the project path `{}`: {err}",
 			args.project_path.display()
 		)
 	})?;
@@ -24,42 +24,54 @@ pub fn run(args: AddArgs) -> ModResult<()> {
 	let project_name = if let Some(name) = &args.project_name {
 		name
 	} else {
-		get_project_name_from_path(&project_path)
-			.ok_or("Could not determine project name from path, use option '--name' instead")?
+		get_project_name_from_path(&project_path).ok_or(concat!(
+			"Failed to determine a project name from the path.\n",
+			"  NOTE: Use the option '--name' to specify a name."
+		))?
 	};
 
+	//TODO: error messages
 	let project_file_contents = if project_path.is_file() {
 		let project_dir = project_path.parent().unwrap();
 		let project_file = project_path.file_name().unwrap();
 		format!(
 			"project-dir = {}\ninitial-file = {}",
-			toml_string_escape(normalize_path_prefix(project_dir).as_os_str())?,
-			toml_string_escape(project_file)?
+			toml_string_escape(normalize_path_prefix(project_dir).as_os_str()).unwrap(),
+			toml_string_escape(project_file).unwrap()
 		)
 	} else {
 		format!(
 			"project-dir = {}",
-			toml_string_escape(normalize_path_prefix(&project_path).as_os_str())?
+			toml_string_escape(normalize_path_prefix(&project_path).as_os_str()).unwrap(),
 		)
 	};
 
 	let projects_dir = dirs::get_skeld_data_dir()
 		.map_err(|err| format!("Failed to determine the skeld data directory:\n  {err}"))?
 		.join("projects");
-	fs::create_dir_all(&projects_dir)
-		.map_err(|err| format!("Failed to create skeld projects directory: {err}"))?;
+	fs::create_dir_all(&projects_dir).map_err(|err| {
+		format!(
+			"Failed to create the skeld projects directory `{}`:\n  {err}",
+			projects_dir.display()
+		)
+	})?;
 
 	let project_filename = projects_dir.join(format!("{project_name}.toml"));
 	let mut project_file = File::create_new(&project_filename).map_err(|err| {
 		if err.kind() == io::ErrorKind::AlreadyExists {
-			"A project with the same name already exists, use option '--name' to use a different name"
-				.to_string()
+			concat!(
+				"Failed to add the project, because a project with the same name already exists.\n",
+				"  NOTE: Use option '--name' to specify a different name."
+			)
+			.to_string()
 		} else {
-			format!("Failed to create project file: {err}")
+			format!(
+				"Failed to create the project file `{}`:\n  {err}",
+				project_filename.display()
+			)
 		}
 	})?;
-	write!(project_file, "{project_file_contents}")
-		.map_err(|err| format!("Failed to write project file: {err}"))?;
+	write!(project_file, "{project_file_contents}").unwrap();
 
 	launch_editor(&project_filename)?;
 
@@ -108,14 +120,13 @@ fn normalize_path_prefix(path: impl AsRef<Path>) -> PathBuf {
 	}
 }
 //TODO: allow all UTF-8
-fn toml_string_escape(str: &OsStr) -> ModResult<String> {
+fn toml_string_escape(str: &OsStr) -> Option<String> {
 	let escaped_str = str
 		.to_str()
-		.filter(|str| str.chars().all(|ch| ch.is_ascii_graphic() || ch == ' '))
-		.ok_or("Can only handle printable ASCII characters in paths")?
+		.filter(|str| str.chars().all(|ch| ch.is_ascii_graphic() || ch == ' '))?
 		.replace('\\', "\\\\")
 		.replace('"', "\\\"");
-	Ok(format!("\"{escaped_str}\""))
+	Some(format!("\"{escaped_str}\""))
 }
 
 fn launch_editor(file: impl AsRef<Path>) -> ModResult<()> {
@@ -123,13 +134,32 @@ fn launch_editor(file: impl AsRef<Path>) -> ModResult<()> {
 	editor_cmd.push(" ");
 	editor_cmd.push(shell_string_escape(file.as_ref().as_os_str()));
 
-	Command::new("sh")
+	let editor_output = Command::new("sh")
 		.arg("-c")
-		.arg(editor_cmd)
+		.arg(&editor_cmd)
+		// NOTE: This won't work if the editor uses stderr to display its tui,
+		//       but that should be unlikely.
+		.stderr(process::Stdio::piped())
 		.spawn()
-		.map_err(|err| format!("Failed to launch editor: {err}"))?
-		.wait()
-		.map_err(|err| format!("Failed to wait for editor: {err}"))?;
+		.expect("failed to execute `sh`")
+		.wait_with_output()
+		.unwrap();
+
+	if !editor_output.status.success() {
+		let editor_stderr = String::from_utf8_lossy(&editor_output.stderr);
+		let trimmed_stderr = editor_stderr
+			.trim()
+			.strip_prefix("sh: line 1: ")
+			.unwrap_or(&editor_stderr);
+		return Err(
+			format!(
+				"Failed to execute the editor command `{}`:\n  {}",
+				editor_cmd.to_string_lossy(),
+				trimmed_stderr.replace('\n', "\n  ")
+			)
+			.into(),
+		);
+	}
 
 	Ok(())
 }

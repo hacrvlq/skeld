@@ -111,17 +111,15 @@ impl Command {
 		let cmd_args = self.command.into_iter().skip(1);
 
 		if self.detach {
-			unistd::daemon(false, false).unwrap();
+			unistd::daemon(false, false).map_err(|err| format!("Failed to detach process: {err}"))?;
 		}
 
 		let mut child = OsCommand::new(&cmd)
 			.args(cmd_args)
 			.spawn()
-			.map_err(|err| format!("Failed to execute command `{cmd}`:{err}"))?;
+			.map_err(|err| format!("Failed to execute command `{cmd}`: {err}"))?;
 
-		let exit_status = child
-			.wait()
-			.map_err(|err| format!("Failed to wait for command: {err}"))?;
+		let exit_status = child.wait().unwrap();
 
 		if let Some(code) = exit_status.code() {
 			Ok((code as u8).into())

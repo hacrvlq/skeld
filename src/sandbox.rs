@@ -3,6 +3,7 @@ use std::{
 	env,
 	error::Error,
 	ffi::OsString,
+	io,
 	path::{Component as PathComponents, Path, PathBuf},
 	process::{Command as OsCommand, ExitCode, ExitStatus},
 };
@@ -46,16 +47,22 @@ impl SandboxParameters {
 		bwrap_command.args(bwrap_args);
 		bwrap_command.arg("--");
 		bwrap_command.args(command.cmd);
-		let mut bwrap_process = bwrap_command
-			.spawn()
-			.map_err(|err| format!("Failed to execute internal sandbox command: {err}"))?;
+		let mut bwrap_process = bwrap_command.spawn().map_err(|err| {
+			let mut error_string = format!("Failed to execute bwrap: {err}");
+			if err.kind() == io::ErrorKind::NotFound {
+				error_string.push_str(concat!(
+					"\n  NOTE: This may be because Bubblewrap is not installed.",
+					"\n        Install Bubblewrap (https://github.com/containers/bubblewrap)",
+					"\n        and make sure `bwrap` is available in `$PATH`.",
+				));
+			}
+			error_string
+		})?;
 
 		if command.detach {
 			Ok(ExitCode::SUCCESS)
 		} else {
-			let sandbox_status = bwrap_process
-				.wait()
-				.map_err(|err| format!("Failed to wait for sandbox: {err}"))?;
+			let sandbox_status = bwrap_process.wait().unwrap();
 			Ok(convert_exit_status_to_code(sandbox_status))
 		}
 	}
@@ -173,14 +180,12 @@ impl Command {
 			.args(self.cmd.iter().skip(1))
 			.current_dir(&self.working_dir)
 			.spawn()
-			.map_err(|err| format!("Failed to execute command: {err}"))?;
+			.map_err(|err| format!("Failed to execute command `{}`: {err}", &self.cmd[0]))?;
 
 		if self.detach {
 			Ok(ExitCode::SUCCESS)
 		} else {
-			let child_status = child
-				.wait()
-				.map_err(|err| format!("Failed to wait for command: {err}"))?;
+			let child_status = child.wait().unwrap();
 			Ok(convert_exit_status_to_code(child_status))
 		}
 	}
@@ -251,7 +256,7 @@ impl<U: Clone> VirtualFSTree<U> {
 				_ => None,
 			})
 			.collect::<Option<Vec<_>>>()
-			.expect("inadmissible path component");
+			.expect("unexpected path component");
 
 		self.add_path_rec(&rest_components, (ty, user_data))
 	}
