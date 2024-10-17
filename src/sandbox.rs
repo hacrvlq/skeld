@@ -108,27 +108,12 @@ fn get_virtual_fs_args(fs_tree: &VirtualFSTree<()>) -> Result<Vec<OsString>, Box
 		assert!(path.is_absolute());
 		let mut path_args = match ty {
 			VirtualFSEntryType::AllowDev => {
-				if path.is_symlink() {
-					return Err(
-						"Error: cannot use whitelist-dev for symlinks, use whitelist-ln instead".into(),
-					);
-				}
 				vec!["--dev-bind-try".into(), path.clone().into(), path.into()]
 			}
 			VirtualFSEntryType::ReadWrite => {
-				if path.is_symlink() {
-					return Err(
-						"Error: cannot use whitelist-rw for symlinks, use whitelist-ln instead".into(),
-					);
-				}
 				vec!["--bind-try".into(), path.clone().into(), path.into()]
 			}
 			VirtualFSEntryType::ReadOnly => {
-				if path.is_symlink() {
-					return Err(
-						"Error: cannot use whitelist-ro for symlinks, use whitelist-ln instead".into(),
-					);
-				}
 				vec!["--ro-bind-try".into(), path.clone().into(), path.into()]
 			}
 			VirtualFSEntryType::Symlink => {
