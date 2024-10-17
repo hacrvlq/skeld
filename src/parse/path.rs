@@ -317,7 +317,7 @@ fn find_toplevel_placeholders(str: &str) -> ModResult<Vec<Placeholder>> {
 		str_pointer += rel_span.end;
 		match ty {
 			PlaceholderPoI::Tilde if bracket_stack.is_empty() => {
-				placeholders.push(Placeholder::Tilde { idx })
+				placeholders.push(Placeholder::Tilde { idx });
 			}
 			PlaceholderPoI::Tilde => (),
 			PlaceholderPoI::Bracket { ty, opening: true } => bracket_stack.push((idx, ty)),
