@@ -30,20 +30,47 @@ pub fn run(args: AddArgs) -> ModResult<()> {
 		))?
 	};
 
-	//TODO: error messages
 	let project_file_contents = if project_path.is_file() {
-		let project_dir = project_path.parent().unwrap();
+		let project_dir = normalize_path_prefix(project_path.parent().unwrap());
+		let project_dir = project_dir.to_str().ok_or_else(|| {
+			format!(
+				concat!(
+					"Failed to make a toml string with the specified project directory,\n",
+					"because it contains invalid UTF-8: `{}`"
+				),
+				project_dir.display()
+			)
+		})?;
+
 		let project_file = project_path.file_name().unwrap();
+		let project_file = project_file.to_str().ok_or_else(|| {
+			format!(
+				concat!(
+					"Failed to make a toml string with the specified project name,\n",
+					"because it contains invalid UTF-8: `{}`"
+				),
+				project_file.to_string_lossy(),
+			)
+		})?;
+
 		format!(
 			"project-dir = {}\ninitial-file = {}",
-			toml_string_escape(normalize_path_prefix(project_dir).as_os_str()).unwrap(),
-			toml_string_escape(project_file).unwrap()
+			toml_string_escape(project_dir),
+			toml_string_escape(project_file)
 		)
 	} else {
-		format!(
-			"project-dir = {}",
-			toml_string_escape(normalize_path_prefix(&project_path).as_os_str()).unwrap(),
-		)
+		let project_dir = normalize_path_prefix(&project_path);
+		let project_dir = project_dir.to_str().ok_or_else(|| {
+			format!(
+				concat!(
+					"Failed to make a toml string with the specified project path,\n",
+					"because it contains invalid UTF-8: `{}`"
+				),
+				project_dir.display()
+			)
+		})?;
+
+		format!("project-dir = {}", toml_string_escape(project_dir))
 	};
 
 	let projects_dir = dirs::get_skeld_data_dir()
@@ -119,14 +146,22 @@ fn normalize_path_prefix(path: impl AsRef<Path>) -> PathBuf {
 		path.to_path_buf()
 	}
 }
-//TODO: allow all UTF-8
-fn toml_string_escape(str: &OsStr) -> Option<String> {
+fn toml_string_escape(str: &str) -> String {
 	let escaped_str = str
-		.to_str()
-		.filter(|str| str.chars().all(|ch| ch.is_ascii_graphic() || ch == ' '))?
-		.replace('\\', "\\\\")
-		.replace('"', "\\\"");
-	Some(format!("\"{escaped_str}\""))
+		.chars()
+		.map(|char| match char {
+			'\x08' => "\\b".to_string(),
+			'\t' => "\\t".to_string(),
+			'\n' => "\\n".to_string(),
+			'\x0c' => "\\f".to_string(),
+			'\r' => "\\r".to_string(),
+			'\\' => "\\\\".to_string(),
+			'"' => "\\\"".to_string(),
+			ch if ch.is_ascii_graphic() || ch == ' ' => ch.to_string(),
+			ch => format!("\\U{:08X}", ch as u32),
+		})
+		.collect::<String>();
+	format!("\"{escaped_str}\"")
 }
 
 fn launch_editor(file: impl AsRef<Path>) -> ModResult<()> {
