@@ -2,6 +2,7 @@
 name = "skeld"
 version = "0.3.0-dev"
 edition = "2021"
+rust-version = "1.81"
 
 authors = ["hacrvlq <hacrvlq@proton.me"]
 description = "a tui tool for opening projects in a restricted sandbox to prevent supply chain attacks such as typesquatting"
