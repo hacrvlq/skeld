@@ -221,18 +221,12 @@ fn get_editor() -> OsString {
 fn shell_string_escape(str: &OsStr) -> OsString {
 	let mut escaped_bytes = Vec::new();
 	escaped_bytes.push(b'"');
-	escaped_bytes.extend(str.as_encoded_bytes().iter().flat_map(|&byte| {
-		if byte == b'$' {
-			vec![b'\\', b'$']
-		} else if byte == b'`' {
-			vec![b'\\', b'`']
-		} else if byte == b'\\' {
-			vec![b'\\', b'\\']
-		} else if byte == b'"' {
-			vec![b'\\', b'"']
-		} else {
-			vec![byte]
-		}
+	escaped_bytes.extend(str.as_encoded_bytes().iter().flat_map(|&byte| match byte {
+		b'$' => vec![b'\\', b'$'],
+		b'`' => vec![b'\\', b'`'],
+		b'\\' => vec![b'\\', b'\\'],
+		b'"' => vec![b'\\', b'"'],
+		_ => vec![byte],
 	}));
 	escaped_bytes.push(b'"');
 	OsString::from_vec(escaped_bytes)
