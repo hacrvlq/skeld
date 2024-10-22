@@ -46,17 +46,25 @@ pub fn canonicalize_include_path(path: impl Into<String>) -> ModResult<PathBuf> 
 	})?;
 	for data_root_dir in skeld_data_dirs {
 		let include_root_dir = data_root_dir.join("include");
-		let possible_file_path = include_root_dir.join(&path);
+		let mut possible_file_path = include_root_dir.join(&path);
+		possible_file_path.as_mut_os_string().push(".toml");
 		if possible_file_path.exists() {
 			matching_files.push(possible_file_path);
 		}
 	}
 
 	if matching_files.is_empty() {
+		let mut notes = vec![format!(
+			"include files are searched in `<SKELD-DATA>/include`\n(see {DOCS_URL}#file-locations)"
+		)];
+		if path.extension().is_some_and(|ext| ext == "toml") {
+			notes.push(format!(
+				"Note that an extra `toml` extension is appended, so the file `{}.toml` is actually searched.",
+				path.display()
+			));
+		}
 		Err(CanonicalizationError {
-			notes: vec![format!(
-				"include files are searched in `<SKELD-DATA>/include`\n(see {DOCS_URL}#file-locations)"
-			)],
+			notes,
 			..CanonicalizationError::main_message("include file not found")
 		})
 	} else if matching_files.len() > 1 {

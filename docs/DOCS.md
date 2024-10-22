@@ -58,7 +58,9 @@ whitelist-envvar = [ "..." ]
 include = [
   # relative paths are searched in <SKELD-DATA>/include
   # (see #File-Locations)
-  "rust.toml",
+  # NOTE: The `toml` file extension will be appended to the
+  #       specified path.
+  "rust",
   # absolute paths are also supported
   "/etc/system.toml",
 ]

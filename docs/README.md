@@ -28,7 +28,7 @@ whitelist-rw = [
   "$(STATE)/nvim",
 ]
 # including options from other files is also supported
-include = ["rust.toml"]
+include = ["rust"]
 ```
 
 ## Installation
@@ -118,7 +118,7 @@ whitelist-dev = [
 # Language-specific whitelists can be separated into different a file.
 # To do so, create a file at $XDG_DATA_HOME/skeld/include/<your_lang>.toml
 # with the language-specific whitelists.
-include = ["<your_lang>.toml"]
+include = ["<your_lang>"]
 ```
 Refer to the [docs](DOCS.md#projects) for all supported options.
 
