@@ -15,6 +15,7 @@ use crossterm::{
 	tty::IsTty as _,
 	QueueableCommand as _,
 };
+use unicode_width::UnicodeWidthStr;
 
 pub use crossterm::style::Color;
 
@@ -327,7 +328,7 @@ impl TextBuilder {
 		self.text.push_str(&text.with(color).to_string());
 		self.max_text_width = self
 			.max_text_width
-			.max(text.lines().map(str::len).max().unwrap_or(0));
+			.max(text.lines().map(UnicodeWidthStr::width).max().unwrap_or(0));
 		self.line_count += text.chars().filter(|ch| ch == &'\n').count();
 	}
 }
