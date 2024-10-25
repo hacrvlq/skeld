@@ -24,6 +24,7 @@ pub struct TuiData<U> {
 	pub banner: String,
 	pub sections: Vec<Section<U>>,
 	pub colorscheme: Colorscheme,
+	pub help_text: String,
 }
 #[derive(Clone, PartialEq, Eq)]
 pub struct Colorscheme {
@@ -223,6 +224,9 @@ struct RenderedContent {
 	left_padding: u16,
 	// buttons_clickable_area: Vec<(line, row_range)>
 	buttons_clickable_area: Vec<(u16, RangeInclusive<u16>)>,
+	// - None: help text should not be visible
+	// - Some((pos, text)): render 'text' at 'pos'
+	help_text: Option<((u16, u16), String)>,
 }
 impl RenderedContent {
 	fn new<U>(content: &TuiData<U>) -> io::Result<Self> {
@@ -232,14 +236,17 @@ impl RenderedContent {
 		text.push_text("\n\n\n", Color::Reset);
 
 		let mut buttons_clickable_area = Vec::new();
-		for section in &content.sections {
+		for (i, section) in content.sections.iter().enumerate() {
 			text.push_text(&section.heading, content.colorscheme.heading);
 			text.push_text("\n\n", Color::Reset);
 			for button in &section.buttons {
 				buttons_clickable_area.push((text.line_count as u16, 0..=button.keybind.len() as u16 + 1));
 				button.render(&content.colorscheme, &mut text);
 			}
-			text.push_text("\n\n", Color::Reset);
+			// NOTE: Trailing newlines would break the overlap check of the help text.
+			if i != content.sections.len() - 1 {
+				text.push_text("\n\n", Color::Reset);
+			}
 		}
 
 		let terminal_size = terminal::size()?;
@@ -256,11 +263,34 @@ impl RenderedContent {
 			})
 			.collect();
 
+		let help_text = (|| {
+			let is_help_text_printable_ascii = content
+				.help_text
+				.chars()
+				.all(|ch| ch.is_ascii_graphic() || ch == ' ');
+			assert!(is_help_text_printable_ascii);
+
+			let help_text_col = terminal_size
+				.0
+				.checked_sub(content.help_text.len().try_into().ok()?)?;
+			let help_text_pos = (help_text_col, terminal_size.1 - 1);
+
+			// check if the help text would overlap the main text
+			if text.line_count >= terminal_size.1 as usize
+				&& help_text_col as usize <= left_padding as usize + text.max_text_width
+			{
+				return None;
+			}
+
+			Some((help_text_pos, content.help_text.clone()))
+		})();
+
 		Ok(Self {
 			terminal_size,
 			left_padding,
 			text: text.text,
 			buttons_clickable_area,
+			help_text,
 		})
 	}
 	fn display(&self, selected_button: usize) -> io::Result<()> {
@@ -280,6 +310,13 @@ impl RenderedContent {
 				.queue(style::Print(&line))?;
 		}
 
+		if let Some((pos, text)) = &self.help_text {
+			stdout
+				.queue(cursor::MoveTo(pos.0, pos.1))?
+				.queue(style::ResetColor)?
+				.queue(style::Print(text))?;
+		}
+
 		let cursor_pos = self
 			.buttons_clickable_area
 			.get(selected_button)
@@ -291,8 +328,8 @@ impl RenderedContent {
 		} else {
 			stdout.queue(cursor::Hide)?;
 		}
-		stdout.flush()?;
 
+		stdout.flush()?;
 		Ok(())
 	}
 }

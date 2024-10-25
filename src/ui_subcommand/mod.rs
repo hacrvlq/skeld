@@ -60,6 +60,7 @@ pub fn run(
 		banner: global_config.banner.clone(),
 		colorscheme: global_config.colorscheme.clone(),
 		sections: sections.collect(),
+		help_text: "Use J/K/Enter/Mouse to navigate".to_string(),
 	};
 
 	let action = tui::run(&tui_data).map_err(|err| err.to_string())?;
