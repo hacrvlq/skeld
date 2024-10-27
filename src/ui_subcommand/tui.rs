@@ -237,7 +237,7 @@ struct RenderedContent {
 	terminal_size: (u16, u16),
 	text: String,
 	left_padding: u16,
-	// buttons_clickable_area: Vec<(line, row_range)>
+	// buttons_clickable_area: Vec<(line, col_range)>
 	buttons_clickable_area: Vec<(u16, RangeInclusive<u16>)>,
 	// - None: help text should not be visible
 	// - Some((pos, text)): render 'text' at 'pos'
