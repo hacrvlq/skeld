@@ -2,7 +2,7 @@ use std::{
 	error::Error,
 	io::{self, Write},
 	ops::RangeInclusive,
-	time,
+	panic, time,
 };
 
 use crossterm::{
@@ -13,7 +13,7 @@ use crossterm::{
 	},
 	style, terminal,
 	tty::IsTty as _,
-	QueueableCommand as _,
+	ExecutableCommand as _, QueueableCommand as _,
 };
 use unicode_width::UnicodeWidthStr;
 
@@ -64,25 +64,44 @@ pub fn run<U: Clone>(data: &TuiData<U>) -> Result<UserSelection<U>, UiError> {
 		return Err(UiError::NoTty);
 	}
 
-	terminal::enable_raw_mode()?;
-	io::stdout()
-		.queue(terminal::EnterAlternateScreen)?
-		.queue(event::EnableMouseCapture)?
-		.queue(terminal::DisableLineWrap)?
-		.queue(cursor::SavePosition)?
-		.flush()?;
-	let restore_terminal = || -> io::Result<()> {
-		terminal::disable_raw_mode()?;
+	let setup_terminal = || -> io::Result<()> {
+		terminal::enable_raw_mode()?;
 		io::stdout()
-			.queue(terminal::LeaveAlternateScreen)?
-			.queue(event::DisableMouseCapture)?
-			.queue(terminal::EnableLineWrap)?
-			.queue(cursor::RestorePosition)?
-			.queue(cursor::Show)?
+			.queue(terminal::EnterAlternateScreen)?
+			.queue(event::EnableMouseCapture)?
+			.queue(terminal::DisableLineWrap)?
+			.queue(cursor::SavePosition)?
 			.flush()?;
 		Ok(())
 	};
+	let restore_terminal = || {
+		let mut stdout = io::stdout();
+		let _ = terminal::disable_raw_mode();
 
+		let _ = stdout.execute(terminal::LeaveAlternateScreen);
+		let _ = stdout.execute(event::DisableMouseCapture);
+		let _ = stdout.execute(terminal::EnableLineWrap);
+		let _ = stdout.execute(cursor::RestorePosition);
+		let _ = stdout.execute(cursor::Show);
+	};
+
+	setup_terminal().inspect_err(|_| restore_terminal())?;
+	// restore the terminal before a panic is displayed
+	let default_panic_hook = panic::take_hook();
+	panic::set_hook(Box::new(move |info| {
+		restore_terminal();
+		default_panic_hook(info);
+	}));
+
+	let result = protected_run(data);
+
+	restore_terminal();
+	// revert to the default panic hook
+	let _ = panic::take_hook();
+
+	result
+}
+fn protected_run<U: Clone>(data: &TuiData<U>) -> Result<UserSelection<U>, UiError> {
 	let mut state = State {
 		data,
 		rendered_content: RenderedContent::new(data)?,
@@ -103,14 +122,10 @@ pub fn run<U: Clone>(data: &TuiData<U>) -> Result<UserSelection<U>, UiError> {
 				code: KeyCode::Char('c'),
 				modifiers: KeyModifiers::CONTROL,
 				..
-			}) => {
-				restore_terminal()?;
-				return Ok(UserSelection::ControlC);
-			}
+			}) => return Ok(UserSelection::ControlC),
 			event => {
 				let choosen_button_action = state.handle_event(&event);
 				if let Some(action) = choosen_button_action {
-					restore_terminal()?;
 					return Ok(UserSelection::Button(action));
 				}
 			}
