@@ -6,7 +6,7 @@ rust-version = "1.81"
 
 authors = ["hacrvlq <hacrvlq@proton.me"]
 description = "a tui tool for opening projects in a restricted sandbox to prevent supply chain attacks such as typosquatting"
-keywords = ["sandbox", "security", "project", "tui", "terminal-interface"]
+keywords = ["sandboxing", "sandbox", "supply-chain-security", "security", "project-launcher", "tui"]
 categories = ["command-line-interface"]
 readme = "docs/README.md"
 repository = "https://github.com/hacrvlq/skeld"
