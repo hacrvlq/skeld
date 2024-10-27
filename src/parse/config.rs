@@ -35,6 +35,7 @@ pub fn default_config() -> GlobalConfig {
 	GlobalConfig {
 		banner: DEFAULT_BANNER.to_string(),
 		colorscheme: DEFAULT_COLORSCHEME,
+		disable_help_text: false,
 		commands: Vec::new(),
 		global_project_data: project_data::PrelimParseState::empty(),
 	}
@@ -53,8 +54,15 @@ pub fn parse_config_file(
 	let mut commands = ArrayOption::new("commands", false, parse_command_data);
 	let mut colorscheme = ColorschemeOption::new();
 	let mut banner = StringOption::new("banner");
+	let mut disable_help_text = BoolOption::new("disable_help_text");
 	parse_lib::parse_table!(
-		&parsed_contents => [global_project_data, commands, colorscheme, banner],
+		&parsed_contents => [
+			global_project_data,
+			commands,
+			colorscheme,
+			banner,
+			disable_help_text
+		],
 		docs-pref: "configuration",
 	)?;
 
@@ -63,6 +71,7 @@ pub fn parse_config_file(
 		global_project_data: global_project_data.get_value(),
 		colorscheme: colorscheme.get_value().unwrap_or(DEFAULT_COLORSCHEME),
 		banner: banner.get_value().unwrap_or(DEFAULT_BANNER.to_string()),
+		disable_help_text: disable_help_text.get_value().unwrap_or_default(),
 	})
 }
 fn parse_command_data(value: &TomlValue) -> ModResult<CommandData> {

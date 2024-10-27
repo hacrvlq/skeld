@@ -47,6 +47,9 @@ the [neovim](https://neovim.io) editor.
 ### Configuration
 Create a file `$XDG_CONFIG_HOME/skeld/config.toml` with the following content:
 ```toml
+# it is possible to disable the help text in the bottom right corner
+disable_help_text = false
+
 [[commands]]
 name = "<edit>"
 keybind = "e"

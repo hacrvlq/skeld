@@ -72,6 +72,7 @@ fn try_main(file_database: &mut parse::FileDatabase) -> GenericResult<ExitCode> 
 pub struct GlobalConfig {
 	pub banner: String,
 	pub colorscheme: tui::Colorscheme,
+	pub disable_help_text: bool,
 	pub commands: Vec<CommandData>,
 	pub global_project_data: parse::PrelimParseState,
 }

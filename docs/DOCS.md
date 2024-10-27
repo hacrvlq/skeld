@@ -127,6 +127,8 @@ banner = '''
 \ \_\ \_\ \____\ \____/\ \___/  \ \_\ \_\ \_\ \_\
  \/_/\/_/\/____/\/___/  \/__/    \/_/\/_/\/_/\/_/
 '''
+# disable the help text in the bottom right corner
+disable_help_text = true
 
 [colorscheme]
 # colors can be specified as hex color codes

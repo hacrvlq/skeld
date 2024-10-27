@@ -56,11 +56,17 @@ pub fn run(
 	.into_iter()
 	.filter(|section| !section.buttons.is_empty());
 
+	let help_text = if global_config.disable_help_text {
+		"".to_string()
+	} else {
+		"Use J/K/Enter/Mouse to navigate".to_string()
+	};
+
 	let tui_data = TuiData {
 		banner: global_config.banner.clone(),
 		colorscheme: global_config.colorscheme.clone(),
 		sections: sections.collect(),
-		help_text: "Use J/K/Enter/Mouse to navigate".to_string(),
+		help_text,
 	};
 
 	let action = tui::run(&tui_data).map_err(|err| err.to_string())?;

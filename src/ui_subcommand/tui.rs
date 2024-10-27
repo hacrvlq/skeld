@@ -279,6 +279,10 @@ impl RenderedContent {
 			.collect();
 
 		let help_text = (|| {
+			if content.help_text.is_empty() {
+				return None;
+			}
+
 			let is_help_text_printable_ascii = content
 				.help_text
 				.chars()
