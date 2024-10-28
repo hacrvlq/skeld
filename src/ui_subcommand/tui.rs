@@ -33,6 +33,7 @@ pub struct Colorscheme {
 	pub heading: Color,
 	pub keybind: Color,
 	pub button_label: Color,
+	pub background: Color,
 }
 #[derive(Clone)]
 pub struct Section<U> {
@@ -235,6 +236,7 @@ impl<U: Clone> State<'_, U> {
 struct RenderedContent {
 	// terminal size at the time of creation
 	terminal_size: (u16, u16),
+	background_color: Color,
 	text: String,
 	left_padding: u16,
 	// buttons_clickable_area: Vec<(line, col_range)>
@@ -306,6 +308,7 @@ impl RenderedContent {
 
 		Ok(Self {
 			terminal_size,
+			background_color: content.colorscheme.background,
 			left_padding,
 			text: text.text,
 			buttons_clickable_area,
@@ -317,7 +320,10 @@ impl RenderedContent {
 
 		let mut stdout = io::stdout();
 
-		stdout.queue(terminal::Clear(terminal::ClearType::All))?;
+		stdout
+			.queue(style::SetBackgroundColor(self.background_color))?
+			.queue(terminal::Clear(terminal::ClearType::All))?;
+
 		for (i, line) in self
 			.text
 			.lines()
@@ -332,7 +338,7 @@ impl RenderedContent {
 		if let Some((pos, text)) = &self.help_text {
 			stdout
 				.queue(cursor::MoveTo(pos.0, pos.1))?
-				.queue(style::ResetColor)?
+				.queue(style::SetForegroundColor(Color::Reset))?
 				.queue(style::Print(text))?;
 		}
 

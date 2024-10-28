@@ -138,6 +138,7 @@ banner = 3
 heading = "#C0A36E"
 label = "#727169"
 keybind = "#6A9589"
+background = "#1F1F28"
 
 [[commands]]
 name = "<edit>"

@@ -30,6 +30,7 @@ const DEFAULT_COLORSCHEME: tui::Colorscheme = tui::Colorscheme {
 	heading: tui::Color::DarkYellow,
 	keybind: tui::Color::DarkCyan,
 	button_label: tui::Color::DarkGrey,
+	background: tui::Color::Reset,
 };
 pub fn default_config() -> GlobalConfig {
 	GlobalConfig {
@@ -140,8 +141,9 @@ fn parse_colorscheme(value: &TomlValue) -> ModResult<tui::Colorscheme> {
 	let mut heading = ColorOption::new("heading");
 	let mut keybind = ColorOption::new("keybind");
 	let mut button_label = ColorOption::new("label");
+	let mut background = ColorOption::new("background");
 	parse_lib::parse_table!(
-		table => [neutral, banner, heading, keybind, button_label],
+		table => [neutral, banner, heading, keybind, button_label, background],
 		docs-pref: "configuration",
 	)?;
 
@@ -158,6 +160,7 @@ fn parse_colorscheme(value: &TomlValue) -> ModResult<tui::Colorscheme> {
 	handle_color_option!(heading);
 	handle_color_option!(keybind);
 	handle_color_option!(button_label);
+	handle_color_option!(background);
 	Ok(resulting_colorscheme)
 }
 
