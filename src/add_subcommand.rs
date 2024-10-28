@@ -98,7 +98,7 @@ pub fn run(args: AddArgs) -> ModResult<()> {
 			)
 		}
 	})?;
-	write!(project_file, "{project_file_contents}").unwrap();
+	writeln!(project_file, "{project_file_contents}").unwrap();
 
 	launch_editor(&project_filename)?;
 
