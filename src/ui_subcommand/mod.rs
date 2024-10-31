@@ -2,8 +2,6 @@ pub mod tui;
 
 use std::process::{Command as OsCommand, ExitCode};
 
-use nix::unistd;
-
 use self::tui::{TuiData, UserSelection};
 use crate::{
 	parse::{ParseContext, PrelimParseState, ProjectDataFuture},
@@ -118,7 +116,7 @@ impl Command {
 		let cmd_args = self.command.into_iter().skip(1);
 
 		if self.detach {
-			unistd::daemon(false, false).map_err(|err| format!("Failed to detach process: {err}"))?;
+			crate::sandbox::detach_process(true)?;
 		}
 
 		let mut child = OsCommand::new(&cmd)

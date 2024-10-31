@@ -62,6 +62,9 @@ pub fn get_skeld_data_dir() -> ModResult<PathBuf> {
 pub fn get_skeld_data_dirs() -> ModResult<Vec<PathBuf>> {
 	Ok(vec![get_skeld_config_dir()?, get_skeld_data_dir()?])
 }
+pub fn get_skeld_state_dir() -> ModResult<PathBuf> {
+	Ok(get_xdg_state_dir()?.join("skeld"))
+}
 
 pub fn get_home_dir() -> ModResult<PathBuf> {
 	let home_dir_path = match env::var_os("HOME") {
