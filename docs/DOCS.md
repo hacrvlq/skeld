@@ -132,7 +132,7 @@ disable_help_text = true
 
 [colorscheme]
 # colors can be specified as hex color codes
-neutral = "#DCD7BA"
+normal = "#DCD7BA"
 # or as ansi color codes (see https://en.wikipedia.org/wiki/ANSI_escape_code#8-bit)
 banner = 3
 heading = "#C0A36E"

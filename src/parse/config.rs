@@ -25,7 +25,7 @@ const DEFAULT_BANNER: &str = r"
  \/___/   \/_/\/_/\/____/\/____/\/____ /
 ";
 const DEFAULT_COLORSCHEME: tui::Colorscheme = tui::Colorscheme {
-	neutral: tui::Color::Reset,
+	normal: tui::Color::Reset,
 	banner: tui::Color::Yellow,
 	heading: tui::Color::DarkYellow,
 	keybind: tui::Color::DarkCyan,
@@ -136,14 +136,14 @@ impl ConfigOption for ColorschemeOption {
 fn parse_colorscheme(value: &TomlValue) -> ModResult<tui::Colorscheme> {
 	let table = value.as_table()?;
 
-	let mut neutral = ColorOption::new("neutral");
+	let mut normal = ColorOption::new("normal");
 	let mut banner = ColorOption::new("banner");
 	let mut heading = ColorOption::new("heading");
 	let mut keybind = ColorOption::new("keybind");
 	let mut button_label = ColorOption::new("label");
 	let mut background = ColorOption::new("background");
 	parse_lib::parse_table!(
-		table => [neutral, banner, heading, keybind, button_label, background],
+		table => [normal, banner, heading, keybind, button_label, background],
 		docs-pref: "configuration",
 	)?;
 
@@ -155,7 +155,7 @@ fn parse_colorscheme(value: &TomlValue) -> ModResult<tui::Colorscheme> {
 			}
 		};
 	}
-	handle_color_option!(neutral);
+	handle_color_option!(normal);
 	handle_color_option!(banner);
 	handle_color_option!(heading);
 	handle_color_option!(keybind);

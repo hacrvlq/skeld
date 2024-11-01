@@ -28,7 +28,7 @@ pub struct TuiData<U> {
 }
 #[derive(Clone, PartialEq, Eq)]
 pub struct Colorscheme {
-	pub neutral: Color,
+	pub normal: Color,
 	pub banner: Color,
 	pub heading: Color,
 	pub keybind: Color,
@@ -361,9 +361,9 @@ impl RenderedContent {
 
 impl<U> Button<U> {
 	fn render(&self, colorscheme: &Colorscheme, out: &mut TextBuilder) {
-		out.push_text("[", colorscheme.neutral);
+		out.push_text("[", colorscheme.normal);
 		out.push_text(&self.keybind, colorscheme.keybind);
-		out.push_text("] ", colorscheme.neutral);
+		out.push_text("] ", colorscheme.normal);
 		out.push_text(&self.text, colorscheme.button_label);
 		out.push_text("\n", Color::Reset);
 	}
