@@ -336,16 +336,15 @@ impl<U: Clone> VirtualFSTree<U> {
 		parts: &[&std::ffi::OsStr],
 		entry: (VirtualFSEntryType, U),
 	) -> Result<(), FSTreeError<U>> {
-		if self.entry.as_ref().is_some_and(|(ty, _)| ty >= &entry.0) {
-			return Ok(());
-		}
-
 		if let Some(next_part) = parts.first() {
 			if self.should_be_leaf() {
 				return Err(FSTreeError::IllegalChildren {
 					inner_path: self.entry.as_ref().unwrap().1.clone(),
 					invalid_child: entry.1,
 				});
+			}
+			if self.entry.as_ref().is_some_and(|(ty, _)| ty >= &entry.0) {
+				return Ok(());
 			}
 
 			let matching_children = if let Some(existing_children) = self
@@ -369,6 +368,9 @@ impl<U: Clone> VirtualFSTree<U> {
 					self.entry.as_ref().unwrap().1.clone(),
 					entry.1,
 				));
+			}
+			if self.entry.as_ref().is_some_and(|(ty, _)| ty >= &entry.0) {
+				return Ok(());
 			}
 
 			self.filter_subpaths(entry.0);
@@ -449,16 +451,20 @@ impl<U: Clone> VirtualFSTree<U> {
 	}
 }
 impl VirtualFSEntryType {
-	fn priority(&self) -> Option<usize> {
+	fn priority(&self) -> Option<i64> {
 		match self {
 			VirtualFSEntryType::AllowDev => Some(2),
 			VirtualFSEntryType::ReadWrite => Some(1),
 			VirtualFSEntryType::ReadOnly => Some(0),
-			VirtualFSEntryType::Tmpfs | VirtualFSEntryType::Symlink => None,
+			VirtualFSEntryType::Symlink => Some(-1),
+			VirtualFSEntryType::Tmpfs => None,
 		}
 	}
 	fn should_be_leaf(&self) -> bool {
-		self.priority().is_none()
+		matches!(
+			self,
+			VirtualFSEntryType::Tmpfs | VirtualFSEntryType::Symlink
+		)
 	}
 }
 impl PartialOrd for VirtualFSEntryType {
