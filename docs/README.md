@@ -60,7 +60,7 @@ detach = false
 [[commands]]
 name = "<quit>"
 keybind = "q"
-# if 'command' is empty, skeld quits immediatly
+# if 'command' is empty, skeld quits immediately
 command = []
 
 # user-wide whitelists
