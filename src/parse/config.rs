@@ -26,10 +26,10 @@ const DEFAULT_BANNER: &str = r"
 ";
 const DEFAULT_COLORSCHEME: tui::Colorscheme = tui::Colorscheme {
 	normal: tui::Color::Reset,
-	banner: tui::Color::Yellow,
-	heading: tui::Color::DarkYellow,
-	keybind: tui::Color::DarkCyan,
-	button_label: tui::Color::DarkGrey,
+	banner: tui::Color::Reset,
+	heading: tui::Color::Reset,
+	keybind: tui::Color::Reset,
+	button_label: tui::Color::Reset,
 	background: tui::Color::Reset,
 };
 pub fn default_config() -> GlobalConfig {
