@@ -136,12 +136,13 @@ impl ConfigOption for ColorschemeOption {
 fn parse_colorscheme(value: &TomlValue) -> ModResult<tui::Colorscheme> {
 	let table = value.as_table()?;
 
-	let mut normal = ColorOption::new("normal");
-	let mut banner = ColorOption::new("banner");
-	let mut heading = ColorOption::new("heading");
-	let mut keybind = ColorOption::new("keybind");
-	let mut button_label = ColorOption::new("label");
-	let mut background = ColorOption::new("background");
+	let create_color_option = |name| BaseOption::<tui::Color>::new(name, parse_tui_color);
+	let mut normal = create_color_option("normal");
+	let mut banner = create_color_option("banner");
+	let mut heading = create_color_option("heading");
+	let mut keybind = create_color_option("keybind");
+	let mut button_label = create_color_option("label");
+	let mut background = create_color_option("background");
 	parse_lib::parse_table!(
 		table => [normal, banner, heading, keybind, button_label, background],
 		docs-pref: "configuration",
@@ -162,22 +163,6 @@ fn parse_colorscheme(value: &TomlValue) -> ModResult<tui::Colorscheme> {
 	handle_color_option!(button_label);
 	handle_color_option!(background);
 	Ok(resulting_colorscheme)
-}
-
-#[derive(Clone)]
-struct ColorOption(BaseOption<tui::Color>);
-impl ColorOption {
-	fn new(name: &str) -> Self {
-		Self(BaseOption::new(name, parse_tui_color))
-	}
-	fn get_value(self) -> Option<tui::Color> {
-		self.0.get_value()
-	}
-}
-impl ConfigOption for ColorOption {
-	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool> {
-		self.0.try_eat(key, value)
-	}
 }
 fn parse_tui_color(value: &TomlValue) -> ModResult<tui::Color> {
 	if let Ok(str) = value.as_str() {
