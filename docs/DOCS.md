@@ -128,7 +128,7 @@ banner = '''
  \/_/\/_/\/____/\/___/  \/__/    \/_/\/_/\/_/\/_/
 '''
 # disable the help text in the bottom right corner
-disable_help_text = true
+disable-help = true
 
 [colorscheme]
 # colors can be specified as hex color codes

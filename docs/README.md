@@ -48,7 +48,7 @@ the [neovim](https://neovim.io) editor.
 Create a file `$XDG_CONFIG_HOME/skeld/config.toml` with the following content:
 ```toml
 # it is possible to disable the help text in the bottom right corner
-disable_help_text = false
+disable-help = false
 
 # colorscheme from the screenshot
 [colorscheme]

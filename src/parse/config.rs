@@ -55,7 +55,7 @@ pub fn parse_config_file(
 	let mut commands = ArrayOption::new("commands", false, parse_command_data);
 	let mut colorscheme = ColorschemeOption::new();
 	let mut banner = StringOption::new("banner");
-	let mut disable_help_text = BoolOption::new("disable_help_text");
+	let mut disable_help_text = BoolOption::new("disable-help");
 	parse_lib::parse_table!(
 		&parsed_contents => [
 			global_project_data,
