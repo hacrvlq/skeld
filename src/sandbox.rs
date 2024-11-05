@@ -231,7 +231,7 @@ fn remove_old_logfiles(logdir: impl AsRef<Path>) {
 			let elapsed_time = dir_entry
 				.metadata()
 				.ok()
-				.and_then(|metadata| metadata.modified().ok())
+				.and_then(|metadata| metadata.accessed().ok())
 				.and_then(|mtime| mtime.elapsed().ok());
 			let Some(elapsed_time) = elapsed_time else {
 				// remove the file in case of an error
