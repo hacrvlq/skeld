@@ -50,6 +50,15 @@ Create a file `$XDG_CONFIG_HOME/skeld/config.toml` with the following content:
 # it is possible to disable the help text in the bottom right corner
 disable_help_text = false
 
+# colorscheme from the screenshot
+[colorscheme]
+normal = "#DCD7BA"
+banner = "#E6C384"
+heading = "#C0A36E"
+label = "#727169"
+keybind = "#6A9589"
+background = "#1F1F28"
+
 [[commands]]
 name = "<edit>"
 keybind = "e"
