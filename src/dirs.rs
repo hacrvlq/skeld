@@ -1,4 +1,5 @@
 use std::{
+	collections::HashSet,
 	env,
 	ffi::{CStr, OsStr},
 	os::unix::ffi::OsStrExt as _,
@@ -53,6 +54,30 @@ fn get_xdg_base_dir(env_var: &str, fallback: &str) -> ModResult<PathBuf> {
 	}
 }
 
+pub fn get_xdg_data_dirs() -> ModResult<Vec<PathBuf>> {
+	let env_var_val = match env::var_os("XDG_DATA_DIRS") {
+		Some(env_var_val) if !env_var_val.is_empty() => env_var_val,
+		_ => return Ok(vec!["/usr/share/local".into(), "/usr/share".into()]),
+	};
+
+	let paths = env_var_val
+		.as_bytes()
+		.split(|ch| *ch == b':')
+		.map(OsStr::from_bytes)
+		.filter(|str| !str.is_empty())
+		.map(PathBuf::from)
+		.collect::<Vec<_>>();
+
+	if let Some(relative_path) = paths.iter().find(|path| path.is_relative()) {
+		Err(Error::RelativeXdgBaseDir {
+			varname: "XDG_DATA_DIRS".to_string(),
+			dir: relative_path.to_path_buf(),
+		})
+	} else {
+		Ok(paths)
+	}
+}
+
 pub fn get_skeld_config_dir() -> ModResult<PathBuf> {
 	Ok(get_xdg_config_dir()?.join("skeld"))
 }
@@ -60,7 +85,17 @@ pub fn get_skeld_data_dir() -> ModResult<PathBuf> {
 	Ok(get_xdg_data_dir()?.join("skeld"))
 }
 pub fn get_skeld_data_dirs() -> ModResult<Vec<PathBuf>> {
-	Ok(vec![get_skeld_config_dir()?, get_skeld_data_dir()?])
+	let mut data_dirs = get_xdg_data_dirs()?
+		.into_iter()
+		.map(|dir| dir.join("skeld"))
+		.collect::<Vec<_>>();
+	data_dirs.push(get_skeld_config_dir()?);
+	data_dirs.push(get_skeld_data_dir()?);
+
+	let mut seen = HashSet::new();
+	data_dirs.retain(|item| seen.insert(item.clone()));
+
+	Ok(data_dirs)
 }
 pub fn get_skeld_state_dir() -> ModResult<PathBuf> {
 	Ok(get_xdg_state_dir()?.join("skeld"))
