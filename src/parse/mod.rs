@@ -36,13 +36,21 @@ pub struct ParseContext<'a> {
 	pub file_database: &'a mut FileDatabase,
 }
 impl ParseContext<'_> {
-	pub fn get_global_config(&mut self) -> ModResult<GlobalConfig> {
-		let global_config_file_path = dirs::get_skeld_config_dir()
-			.map_err(|err| format!("Failed to determine the skeld config dir:\n  {err}"))?
-			.join("config.toml");
+	pub fn get_global_config(
+		&mut self,
+		config_file_path: Option<impl AsRef<Path>>,
+	) -> ModResult<GlobalConfig> {
+		let global_config_file_path = match config_file_path {
+			Some(path) => path.as_ref().to_path_buf(),
+			None => dirs::get_skeld_config_dir()
+				.map_err(|err| format!("Failed to determine the skeld config dir:\n  {err}"))?
+				.join("config.toml"),
+		};
+
 		if !global_config_file_path.exists() {
 			return Ok(config::default_config());
 		}
+
 		config::parse_config_file(&global_config_file_path, self)
 	}
 	pub fn get_projects(&mut self) -> ModResult<Vec<ProjectButtonData>> {
