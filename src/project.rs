@@ -59,7 +59,7 @@ impl EditorCommand {
 				.map(|arg| arg.replace("$(FILE)", &initial_file))
 				.collect()
 		} else {
-			self.cmd_without_file.into_iter().map(Into::into).collect()
+			self.cmd_without_file.into_iter().collect()
 		};
 
 		Command {
