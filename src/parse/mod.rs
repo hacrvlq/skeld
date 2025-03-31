@@ -8,8 +8,8 @@ use std::{
 	path::{Path, PathBuf},
 };
 
-use self::lib::{self as parse_lib, diagnostics, StringOption, TomlKey, TomlValue};
-use crate::{dirs, GlobalConfig};
+use self::lib::{self as parse_lib, StringOption, TomlKey, TomlValue};
+use crate::{dirs, GlobalConfig, DOCS_URL};
 
 pub use self::{
 	lib::{Diagnostic, FileDatabase},
@@ -21,13 +21,9 @@ type ModResult<T> = crate::GenericResult<T>;
 #[derive(Clone)]
 pub struct ProjectButtonData {
 	pub name: String,
+	// if 'keybind' is 'None', an automatically determined keybinding will be used
+	pub keybind: Option<String>,
 	pub project_data: ProjectDataFuture,
-}
-#[derive(Clone)]
-pub struct BookmarkData {
-	pub project_data: ProjectDataFuture,
-	pub keybind: String,
-	pub name: String,
 }
 
 // NOTE: FileDatabase is required for displaying errors,
@@ -53,102 +49,37 @@ impl ParseContext<'_> {
 
 		config::parse_config_file(&global_config_file_path, self)
 	}
+	pub fn get_bookmarks(&mut self) -> ModResult<Vec<ProjectButtonData>> {
+		self.get_projects_from_data_subdir("bookmarks")
+	}
 	pub fn get_projects(&mut self) -> ModResult<Vec<ProjectButtonData>> {
+		self.get_projects_from_data_subdir("projects")
+	}
+	// get projects from all '<SKELD-DATA>/subdir' directories
+	fn get_projects_from_data_subdir(
+		&mut self,
+		subdir: impl AsRef<Path>,
+	) -> ModResult<Vec<ProjectButtonData>> {
 		let mut projects = Vec::new();
 
 		let skeld_data_dirs = dirs::get_skeld_data_dirs()
 			.map_err(|err| format!("Failed to determine the skeld data directories:\n  {err}"))?;
 		for data_root_dir in skeld_data_dirs {
-			let projects_root_dir = data_root_dir.join("projects");
-			projects.append(&mut self.read_projects_from_dir(projects_root_dir)?);
+			let projects_dir = data_root_dir.join(&subdir);
+			let mut projects_in_dir = get_toml_files_from_dir(projects_dir)?
+				.into_iter()
+				.map(|entry| self.parse_project_file_stage1(entry))
+				.collect::<ModResult<Vec<_>>>()?;
+			projects.append(&mut projects_in_dir);
 		}
 
-		let projects =
-			sort_vec_and_check_dup(projects, |v| v.1.name.clone()).map_err(|duplicates| {
-				let duplicates_str = duplicates
-					.iter()
-					.map(|(path, _)| format!("- {}", path.display()))
-					.collect::<Vec<_>>()
-					.join("\n");
-				format!(
-					"Found conflicting projects with the same name `{}`:\n{duplicates_str}",
-					duplicates[0].1.name
-				)
-			})?;
-
-		let projects = projects.into_iter().map(|(_, data)| data).collect();
 		Ok(projects)
 	}
-	fn read_projects_from_dir(
-		&mut self,
-		projects_dir: impl AsRef<Path>,
-	) -> ModResult<Vec<(PathBuf, ProjectButtonData)>> {
-		let mut projects = Vec::new();
-		for entry in get_toml_files_from_dir(projects_dir)? {
-			let project_data = ProjectDataFuture::Project(entry.clone());
-			let file_stem = entry.file_stem().unwrap();
-			let project_name = file_stem
-				.to_str()
-				.ok_or_else(|| {
-					format!(
-						concat!(
-							"Failed to determine project name of `{}`,\n",
-							"because file stem contains invalid UTF-8"
-						),
-						entry.display()
-					)
-				})?
-				.to_string();
-			let project_button_data = ProjectButtonData {
-				project_data,
-				name: project_name,
-			};
+	fn parse_project_file_stage1(&mut self, path: impl AsRef<Path>) -> ModResult<ProjectButtonData> {
+		let path = path.as_ref();
 
-			projects.push((entry, project_button_data));
-		}
-		Ok(projects)
-	}
-	pub fn get_bookmarks(&mut self) -> ModResult<Vec<BookmarkData>> {
-		let mut bookmarks = Vec::new();
-
-		let skeld_data_dirs = dirs::get_skeld_data_dirs()
-			.map_err(|err| format!("Failed to determine the skeld data directories:\n  {err}"))?;
-		for data_root_dir in skeld_data_dirs {
-			let bookmarks_dir = data_root_dir.join("bookmarks/");
-			bookmarks.append(&mut self.read_bookmarks_from_dir(bookmarks_dir)?);
-		}
-
-		let bookmarks =
-			sort_vec_and_check_dup(bookmarks, |v| v.1.keybind.clone()).map_err(|duplicates| {
-				let duplicates_str = duplicates
-					.iter()
-					.map(|(path, _)| format!("- {}", path.display()))
-					.collect::<Vec<_>>()
-					.join("\n");
-				format!(
-					"Found conflicting bookmarks with the same keybind `{}`:\n{duplicates_str}",
-					duplicates[0].1.keybind
-				)
-			})?;
-
-		let bookmarks = bookmarks.into_iter().map(|(_, data)| data).collect();
-		Ok(bookmarks)
-	}
-	fn read_bookmarks_from_dir(
-		&mut self,
-		bookmarks_dir: impl AsRef<Path>,
-	) -> ModResult<Vec<(PathBuf, BookmarkData)>> {
-		let mut bookmarks = Vec::new();
-		for entry in get_toml_files_from_dir(bookmarks_dir)? {
-			let bookmark_data = self.parse_bookmark_file_stage1(&entry)?;
-			bookmarks.push((entry, bookmark_data));
-		}
-		Ok(bookmarks)
-	}
-	pub fn parse_bookmark_file_stage1(&mut self, path: impl AsRef<Path>) -> ModResult<BookmarkData> {
 		let mut outlivers = (None, None);
-		let parsed_contents =
-			parse_lib::parse_toml_file(path.as_ref(), self.file_database, &mut outlivers)?;
+		let parsed_contents = parse_lib::parse_toml_file(path, self.file_database, &mut outlivers)?;
 
 		let mut name = StringOption::new("name");
 		let mut keybind = StringOption::new("keybind");
@@ -161,19 +92,39 @@ impl ParseContext<'_> {
 		}
 		let mut project_data = ProjectDataMockOption;
 
-		let docs_pref = "bookmarks";
+		let docs_pref = "projects";
 		parse_lib::parse_table!(
 			&parsed_contents => [name, keybind, project_data],
 			docs-pref: docs_pref,
 		)?;
-		Ok(BookmarkData {
-			name: name
-				.get_value()
-				.ok_or_else(|| diagnostics::missing_option(parsed_contents.loc(), "name", docs_pref))?,
-			keybind: keybind
-				.get_value()
-				.ok_or_else(|| diagnostics::missing_option(parsed_contents.loc(), "keybind", docs_pref))?,
-			project_data: ProjectDataFuture::Bookmark(path.as_ref().to_path_buf()),
+
+		let project_name = match name.get_value() {
+			Some(name) => name,
+			None => {
+				let file_stem = path.file_stem().unwrap();
+				file_stem
+					.to_str()
+					.ok_or_else(|| {
+						format!(
+							concat!(
+								"Failed to determine project name of `{}` from the filename,\n",
+								"as it contains contains invalid UTF-8.\n",
+								"  NOTE: use the config option 'name' to manually specify a name\n",
+								"  (see {docs_url}#{docs_pref})",
+							),
+							path.display(),
+							docs_pref = docs_pref,
+							docs_url = DOCS_URL,
+						)
+					})?
+					.to_string()
+			}
+		};
+
+		Ok(ProjectButtonData {
+			name: project_name,
+			keybind: keybind.get_value(),
+			project_data: ProjectDataFuture(path.to_path_buf()),
 		})
 	}
 }
@@ -200,32 +151,7 @@ fn get_toml_files_from_dir(dir: impl AsRef<Path>) -> ModResult<Vec<PathBuf>> {
 		entries.push(entry_path);
 	}
 
+	// consistent order
+	entries.sort();
 	Ok(entries)
-}
-// if 'vec' has no duplicates, the sorted 'vec' is returned;
-// otherwise a group of duplicates is returned as an error
-fn sort_vec_and_check_dup<T, K: Eq + Ord>(
-	mut vec: Vec<T>,
-	key_fn: impl Fn(&T) -> K,
-) -> Result<Vec<T>, Vec<T>> {
-	vec.sort_by_key(&key_fn);
-
-	let mut last_eq_idx = 0;
-	// NOTE: This loop includes i = vec.len() as a "virtual" element
-	//       that is different from all other element. This is
-	//       necessary to detect duplicates at the end of 'vec'.
-	for i in 1..=vec.len() {
-		if i != vec.len() && key_fn(&vec[i]) == key_fn(&vec[last_eq_idx]) {
-			continue;
-		}
-
-		if i - last_eq_idx > 1 {
-			let duplicates = vec.drain(last_eq_idx..i).collect();
-			return Err(duplicates);
-		}
-
-		last_eq_idx = i;
-	}
-
-	Ok(vec)
 }

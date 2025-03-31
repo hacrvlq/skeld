@@ -98,20 +98,22 @@ Skeld searches for project/configuration files in:
 These locations are referred to as `<SKELD-DATA>`.
 
 ## Projects
-Project files are located in `<SKELD-DATA>/projects`. Note that files need the
-extension `toml` in order to be recognized.
-See [Project Data Format](#project-data-format) for supported options.
-
-## Bookmarks
-Bookmark files are located in `<SKELD-DATA>/bookmarks`. They must have the
+Projects files are located in `<SKELD-DATA>/projects`. They must have the
 extension `toml` and the following content:
 ```toml
+# NOTE: if not provided, the filename (without extension) is used
 name = "nvim-config"
+# NOTE: projects that don't specify a keybinding are assigned a number (starting
+#       with 1) as the keybinding
 keybind = "cv"
 
 [project]
 # see #Project-Data-Format for supported options
 ```
+
+## Bookmarks
+Bookmark files are located in `<SKELD-DATA>/bookmarks` and use the same format
+as projects.
 
 ## Configuration
 The configuration is located at `$XDG_CONFIG_HOME/skeld/config.toml` (fallback

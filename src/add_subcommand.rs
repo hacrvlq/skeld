@@ -54,7 +54,8 @@ pub fn run(args: AddArgs) -> ModResult<()> {
 		})?;
 
 		format!(
-			"project-dir = {}\ninitial-file = {}",
+			"name = {}\n\n[project]\nproject-dir = {}\ninitial-file = {}",
+			toml_string_escape(project_name),
 			toml_string_escape(project_dir),
 			toml_string_escape(project_file)
 		)
@@ -70,7 +71,11 @@ pub fn run(args: AddArgs) -> ModResult<()> {
 			)
 		})?;
 
-		format!("project-dir = {}", toml_string_escape(project_dir))
+		format!(
+			"name = {}\n\n[project]\nproject-dir = {}",
+			toml_string_escape(project_name),
+			toml_string_escape(project_dir)
+		)
 	};
 
 	let projects_dir = dirs::get_skeld_data_dir()

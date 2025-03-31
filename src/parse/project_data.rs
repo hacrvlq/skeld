@@ -13,36 +13,16 @@ use crate::{
 };
 
 #[derive(Clone, Debug)]
-pub enum ProjectDataFuture {
-	Project(PathBuf),
-	Bookmark(PathBuf),
-}
+pub struct ProjectDataFuture(pub PathBuf);
 impl ProjectDataFuture {
 	pub fn load(
 		self,
 		parse_state: PrelimParseState,
 		ctx: &mut ParseContext,
 	) -> ModResult<ProjectData> {
-		match self {
-			Self::Project(path) => Self::parse_project_data_file(path, parse_state, ctx),
-			Self::Bookmark(path) => Self::parse_bookmark_file_stage2(path, parse_state, ctx),
-		}
+		Self::parse_project_file_stage2(self.0, parse_state, ctx)
 	}
-	fn parse_project_data_file(
-		path: impl AsRef<Path>,
-		mut parse_state: PrelimParseState,
-		ctx: &mut ParseContext,
-	) -> ModResult<ProjectData> {
-		let mut outlivers = (None, None);
-		let parsed_contents = parse_lib::parse_toml_file(path, ctx.file_database, &mut outlivers)?;
-		parse_state.parse_table(&parsed_contents, ctx)?;
-
-		let project_data = parse_state.into_project_data().map_err(|missing| {
-			diagnostics::missing_option(parsed_contents.loc(), &missing, "project-data-format")
-		})?;
-		Ok(project_data)
-	}
-	fn parse_bookmark_file_stage2(
+	fn parse_project_file_stage2(
 		path: impl AsRef<Path>,
 		parse_state: PrelimParseState,
 		ctx: &mut ParseContext,
@@ -55,7 +35,7 @@ impl ProjectDataFuture {
 		let mut keybind = StringOption::new("keybind");
 		let mut project_data = ProjectDataOption::new("project", parse_state, ctx);
 
-		let docs_pref = "bookmarks";
+		let docs_pref = "projects";
 		parse_lib::parse_table!(
 			&parsed_contents => [name, keybind, project_data],
 			docs-pref: docs_pref,
