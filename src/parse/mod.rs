@@ -8,7 +8,7 @@ use std::{
 	path::{Path, PathBuf},
 };
 
-use self::lib::{self as parse_lib, StringOption, MockOption};
+use self::lib::{self as parse_lib, MockOption, StringOption};
 use crate::{dirs, GlobalConfig, DOCS_URL};
 
 pub use self::{
