@@ -94,6 +94,8 @@ Skeld searches for project/configuration files in:
 
 - `$XDG_CONFIG_HOME/skeld` (fallback `~/.config/skeld`)
 - `$XDG_DATA_HOME/skeld` (fallback `~/.local/share/skeld`)
+- `$XDG_DATA_DIRS[0]/skeld`, `$XDG_DATA_DIRS[1]/skeld`, ... (fallback
+	`/usr/share/local/skeld` and `/usr/share/skeld`)
 
 These locations are referred to as `<SKELD-DATA>`.
 
