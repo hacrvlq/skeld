@@ -229,6 +229,24 @@ impl ConfigOption for BoolOption {
 	}
 }
 
+// useful to suppress "unknown option" errors
+#[derive(Clone)]
+pub struct MockOption {
+	name: String,
+}
+impl MockOption {
+	pub fn new(name: &str) -> Self {
+		Self {
+			name: name.to_string(),
+		}
+	}
+}
+impl ConfigOption for MockOption {
+	fn try_eat(&mut self, key: &TomlKey, _value: &TomlValue) -> ModResult<bool> {
+		Ok(key.name == self.name)
+	}
+}
+
 #[derive(Clone)]
 pub struct PathBufOption(BaseOption<PathBuf>);
 impl PathBufOption {

@@ -8,7 +8,7 @@ use std::{
 	path::{Path, PathBuf},
 };
 
-use self::lib::{self as parse_lib, StringOption, TomlKey, TomlValue};
+use self::lib::{self as parse_lib, StringOption, MockOption};
 use crate::{dirs, GlobalConfig, DOCS_URL};
 
 pub use self::{
@@ -84,13 +84,7 @@ impl ParseContext<'_> {
 		let mut name = StringOption::new("name");
 		let mut keybind = StringOption::new("keybind");
 		// mock the project data option, so there is not an "unknown option" error
-		struct ProjectDataMockOption;
-		impl parse_lib::ConfigOption for ProjectDataMockOption {
-			fn try_eat(&mut self, key: &TomlKey, _: &TomlValue) -> ModResult<bool> {
-				Ok(key.name() == "project")
-			}
-		}
-		let mut project_data = ProjectDataMockOption;
+		let mut project_data = MockOption::new("project");
 
 		let docs_pref = "projects";
 		parse_lib::parse_table!(
