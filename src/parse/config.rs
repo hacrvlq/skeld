@@ -97,7 +97,7 @@ fn parse_command_data(value: &TomlValue) -> ModResult<CommandData> {
 		.ok_or_else(|| diagnostics::missing_option(value.loc(), "name", docs_pref))?;
 	let keybind = keybind
 		.get_value()
-		.ok_or_else(|| diagnostics::missing_option(value.loc(), "name", docs_pref))?;
+		.ok_or_else(|| diagnostics::missing_option(value.loc(), "keybind", docs_pref))?;
 	let command = command
 		.get_value()
 		.ok_or_else(|| diagnostics::missing_option(value.loc(), "command", docs_pref))?;
