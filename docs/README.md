@@ -19,7 +19,8 @@ The paths that the sandbox can access are defined on a per-project basis:
 project-dir = "~/dev/skeld"
 # paths can be whitelisted read-only
 whitelist-ro = [
-  # some string interpolation is supported (see DOCS.md#String-Interpolation)
+  # some string interpolation is supported
+  # (see `man 'skeld(7)'`, section "String Interpolation")
   "$(CONFIG)/nvim",
 ]
 # paths can be whitelisted read-write
@@ -63,7 +64,8 @@ background = "#1F1F28"
 name = "<edit>"
 keybind = "e"
 command = ["nvim"]
-# see DOCS.md#Project-Data-Format
+# whether to detach from terminal;
+# should be true for GUI commands and false for TUI commands
 detach = false
 
 [[commands]]
@@ -112,7 +114,7 @@ cmd-without-file = ["nvim", "."]
 # should be true for GUI editors and false for TUI editors
 detach = false
 ```
-Refer to the [docs](DOCS.md#configuration) for all supported options.
+Refer to `man 'skeld(7)'` for all supported options.
 
 ### Projects
 To add a project, create a file at
@@ -132,18 +134,20 @@ whitelist-dev = [
 # with the language-specific whitelists.
 include = ["<your_lang>"]
 ```
-Refer to the [docs](DOCS.md#projects) for all supported options.
+Refer to `man 'skeld(7)'` for all supported options.
 
 ## Documentation
-The documentation is available [here](DOCS.md).
+The documentation is available at `man 'skeld(7)'`
 
 ## Building
 Requires the [Rust Compiler](https://www.rust-lang.org/tools/install).
-```console
-$ git clone --depth=1 https://github.com/hacrvlq/skeld
-$ cd skeld
-$ cargo build --release
-$ ./target/release/skeld
+```sh
+cargo build --release
+./target/release/skeld
+```
+To build the man page, [scdoc](https://git.sr.ht/~sircmpwn/scdoc) is required.
+```sh
+scdoc < docs/skeld.7.scd > skeld.7
 ```
 
 [^1]: This might be slightly overdramatized.

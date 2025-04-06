@@ -17,8 +17,6 @@ use crate::{
 
 pub use error::{GenericError, GenericResult};
 
-pub const DOCS_URL: &str = "https://github.com/hacrvlq/skeld/blob/v0.4.0/docs/DOCS.md";
-
 #[derive(clap::Parser)]
 #[command(version, about = "Open projects in a restricted sandbox")]
 struct CliArgs {

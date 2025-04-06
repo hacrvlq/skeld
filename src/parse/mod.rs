@@ -9,7 +9,7 @@ use std::{
 };
 
 use self::lib::{self as parse_lib, MockOption, StringOption};
-use crate::{dirs, GlobalConfig, DOCS_URL};
+use crate::{dirs, GlobalConfig};
 
 pub use self::{
 	lib::{Diagnostic, FileDatabase},
@@ -86,10 +86,10 @@ impl ParseContext<'_> {
 		// mock the project data option, so there is not an "unknown option" error
 		let mut project_data = MockOption::new("project");
 
-		let docs_pref = "projects";
+		let docs_section = "PROJECTS";
 		parse_lib::parse_table!(
 			&parsed_contents => [name, keybind, project_data],
-			docs-pref: docs_pref,
+			docs-section: docs_section,
 		)?;
 
 		let project_name = match name.get_value() {
@@ -104,11 +104,10 @@ impl ParseContext<'_> {
 								"Failed to determine project name of `{}` from the filename,\n",
 								"as it contains contains invalid UTF-8.\n",
 								"  NOTE: use the config option 'name' to manually specify a name\n",
-								"  (see {docs_url}#{docs_pref})",
+								"  (run `{man_cmd}` for more information)",
 							),
 							path.display(),
-							docs_pref = docs_pref,
-							docs_url = DOCS_URL,
+							man_cmd = crate::error::get_manpage_cmd(docs_section),
 						)
 					})?
 					.to_string()

@@ -3,7 +3,6 @@ use std::{env, iter, ops::Range, path::PathBuf};
 use crate::{
 	dirs,
 	parse::lib::{CanonicalizationError, CanonicalizationLabel},
-	DOCS_URL,
 };
 
 type ModResult<T> = Result<T, CanonicalizationError>;
@@ -55,7 +54,8 @@ pub fn canonicalize_include_path(path: impl Into<String>) -> ModResult<PathBuf> 
 
 	if matching_files.is_empty() {
 		let mut notes = vec![format!(
-			"include files are searched in `<SKELD-DATA>/include`\n(see {DOCS_URL}#file-locations)"
+			"include files are searched in `<SKELD-DATA>/include`\n(see `{man_cmd}` for more information)",
+			man_cmd = crate::error::get_manpage_cmd("FILES"),
 		)];
 		if path.extension().is_some_and(|ext| ext == "toml") {
 			notes.push(format!(
@@ -246,7 +246,8 @@ fn resolve_variable_expr(expr: &str, allow_file_var: bool) -> ModResult<Option<S
 			.join(", ");
 
 		let mut notes = vec![format!(
-			"supported variables are {valid_variables_str}\n(see {DOCS_URL}#string-interpolation)"
+			"supported variables are {valid_variables_str}\n(run `{man_cmd}` to see all supported variables)",
+			man_cmd = crate::error::get_manpage_cmd("String Interpolation"),
 		)];
 		if !allow_file_var && expr == "FILE" {
 			notes.push("$(FILE) can only be used in 'editor.cmd-with-file'".to_string());

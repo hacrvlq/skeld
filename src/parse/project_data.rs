@@ -35,15 +35,17 @@ impl ProjectDataFuture {
 		let mut keybind = StringOption::new("keybind");
 		let mut project_data = ProjectDataOption::new("project", parse_state, ctx);
 
-		let docs_pref = "projects";
+		let docs_section = "PROJECTS";
 		parse_lib::parse_table!(
 			&parsed_contents => [name, keybind, project_data],
-			docs-pref: docs_pref,
+			docs-section: docs_section,
 		)?;
 		let project_data = project_data
 			.get_value()
 			.into_project_data()
-			.map_err(|missing| diagnostics::missing_option(parsed_contents.loc(), &missing, docs_pref))?;
+			.map_err(|missing| {
+				diagnostics::missing_option(parsed_contents.loc(), &missing, docs_section)
+			})?;
 
 		Ok(project_data)
 	}
@@ -174,7 +176,7 @@ impl PrelimParseState {
 				self.auto_nixshell,
 				self.disable_sandbox
 			],
-			docs-pref: "project-data-format",
+			docs-section: "PROJECT DATA FORMAT",
 		)?;
 
 		for include_path in include_option.get_value().unwrap_or_default() {
@@ -284,20 +286,20 @@ impl parse_lib::ConfigOption for EditorCommandOption {
 		});
 		let mut detach = BoolOption::new("detach");
 
-		let docs_pref = "project-data-format";
+		let docs_section = "PROJECT DATA FORMAT";
 		parse_lib::parse_table!(
 			&table => [cmd_with_file, cmd_without_file, detach],
-			docs-pref: docs_pref,
+			docs-section: docs_section,
 		)?;
 		let cmd_with_file = cmd_with_file
 			.get_value_with_loc()
-			.ok_or_else(|| diagnostics::missing_option(key.loc(), "cmd-with-file", docs_pref))?;
+			.ok_or_else(|| diagnostics::missing_option(key.loc(), "cmd-with-file", docs_section))?;
 		let cmd_without_file = cmd_without_file
 			.get_value_with_loc()
-			.ok_or_else(|| diagnostics::missing_option(key.loc(), "cmd-without-file", docs_pref))?;
+			.ok_or_else(|| diagnostics::missing_option(key.loc(), "cmd-without-file", docs_section))?;
 		let detach = detach
 			.get_value()
-			.ok_or_else(|| diagnostics::missing_option(key.loc(), "detach", docs_pref))?;
+			.ok_or_else(|| diagnostics::missing_option(key.loc(), "detach", docs_section))?;
 
 		let diagnostics_empty_command = |loc: parse_lib::Location| {
 			let label = loc

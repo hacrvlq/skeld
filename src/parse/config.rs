@@ -64,7 +64,7 @@ pub fn parse_config_file(
 			banner,
 			disable_help_text
 		],
-		docs-pref: "configuration",
+		docs-section: "CONFIGURATION",
 	)?;
 
 	Ok(GlobalConfig {
@@ -87,20 +87,20 @@ fn parse_command_data(value: &TomlValue) -> ModResult<CommandData> {
 	});
 	let mut detach = BoolOption::new("detach");
 
-	let docs_pref = "configuration";
+	let docs_section = "CONFIGURATION";
 	parse_lib::parse_table!(
 		&table => [name, keybind, command, detach],
-		docs-pref: docs_pref,
+		docs-section: docs_section,
 	)?;
 	let name = name
 		.get_value()
-		.ok_or_else(|| diagnostics::missing_option(value.loc(), "name", docs_pref))?;
+		.ok_or_else(|| diagnostics::missing_option(value.loc(), "name", docs_section))?;
 	let keybind = keybind
 		.get_value()
-		.ok_or_else(|| diagnostics::missing_option(value.loc(), "keybind", docs_pref))?;
+		.ok_or_else(|| diagnostics::missing_option(value.loc(), "keybind", docs_section))?;
 	let command = command
 		.get_value()
-		.ok_or_else(|| diagnostics::missing_option(value.loc(), "command", docs_pref))?;
+		.ok_or_else(|| diagnostics::missing_option(value.loc(), "command", docs_section))?;
 	// detach' is useless if 'command' is empty,
 	// as skeld will quit immediately in this case
 	let detach = if command.is_empty() {
@@ -108,7 +108,7 @@ fn parse_command_data(value: &TomlValue) -> ModResult<CommandData> {
 	} else {
 		detach
 			.get_value()
-			.ok_or_else(|| diagnostics::missing_option(value.loc(), "detach", docs_pref))?
+			.ok_or_else(|| diagnostics::missing_option(value.loc(), "detach", docs_section))?
 	};
 
 	Ok(CommandData {
@@ -145,7 +145,7 @@ fn parse_colorscheme(value: &TomlValue) -> ModResult<tui::Colorscheme> {
 	let mut background = create_color_option("background");
 	parse_lib::parse_table!(
 		table => [normal, banner, heading, keybind, button_label, background],
-		docs-pref: "configuration",
+		docs-section: "CONFIGURATION",
 	)?;
 
 	let mut resulting_colorscheme = DEFAULT_COLORSCHEME;
