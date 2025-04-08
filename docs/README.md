@@ -16,6 +16,7 @@ The paths that the sandbox can access are defined on a per-project basis:
 ```toml
 # projects are specified with a single TOML file
 
+[project]
 project-dir = "~/dev/skeld"
 # paths can be whitelisted read-only
 whitelist-ro = [
@@ -121,6 +122,7 @@ To add a project, create a file at
 `$XDG_DATA_HOME/skeld/projects/<your_project_name>.toml`
 with the following content:
 ```toml
+[project]
 project-dir = "<your_project_directory>"
 # optionally, a file to be opened initially can be specified
 initial-file = "src/main.rs"
