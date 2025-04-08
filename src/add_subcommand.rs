@@ -205,7 +205,7 @@ fn launch_editor(file: impl AsRef<Path>) -> ModResult<()> {
 }
 // inspired by git's process of determining the editor
 fn get_editor() -> OsString {
-	let terminal_is_dumb = !env::var_os("TERM").is_some_and(|val| val != "dumb");
+	let terminal_is_dumb = env::var_os("TERM").is_none_or(|val| val == "dumb");
 
 	match env::var_os("VISUAL") {
 		Some(val) if !val.is_empty() && !terminal_is_dumb => return val,

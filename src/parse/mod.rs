@@ -138,7 +138,7 @@ fn get_toml_files_from_dir(dir: impl AsRef<Path>) -> ModResult<Vec<PathBuf>> {
 	let mut entries = Vec::new();
 	for entry in dir_iter {
 		let entry_path = entry.unwrap().path();
-		if !entry_path.is_file() || !entry_path.extension().is_some_and(|ext| ext == "toml") {
+		if !entry_path.is_file() || entry_path.extension().is_none_or(|ext| ext != "toml") {
 			continue;
 		}
 		entries.push(entry_path);
