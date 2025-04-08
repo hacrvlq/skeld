@@ -481,8 +481,14 @@ fn get_bpf_program() -> BpfProgram {
 	let arch = SeccompArch::x86_64;
 	#[cfg(target_arch = "aarch64")]
 	let arch = SeccompArch::aarch64;
-	#[cfg(not(any(target_arch = "aarch64", target_arch = "x86_64")))]
-	compile_error!("only x86_64 and aarch64 are supported");
+	#[cfg(target_arch = "riscv64")]
+	let arch = SeccompArch::riscv64;
+	#[cfg(not(any(
+		target_arch = "aarch64",
+		target_arch = "x86_64",
+		target_arch = "riscv64"
+	)))]
+	compile_error!("only x86_64, aarch64 and riscv64 are supported");
 
 	let blacklist_syscalls = [(
 		libc::SYS_ioctl,

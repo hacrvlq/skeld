@@ -2,7 +2,7 @@
 name = "skeld"
 version = "0.4.0-dev"
 edition = "2021"
-rust-version = "1.81"
+rust-version = "1.85"
 
 authors = ["hacrvlq <hacrvlq@proton.me"]
 description = "a tui tool for opening projects in a restricted sandbox to prevent supply chain attacks such as typosquatting"
@@ -19,12 +19,12 @@ codegen-units = 1
 strip = true
 
 [dependencies]
-crossterm = { version = "0.28.1", default-features = false, features = ["bracketed-paste", "events"] }
+crossterm = { version = "0.29.0", default-features = false, features = ["bracketed-paste", "events"] }
 libc = "0.2.155"
-seccompiler = "0.4.0"
+seccompiler = "0.5.0"
 nix = { version = "0.29.0", features = ["process", "fs"] }
-toml-span = { version = "0.3.0", features = ["reporting"] }
-codespan-reporting = "0.11.1"
-derive_more = { version = "1.0.0", features = ["from", "display"] }
+toml-span = { version = "0.5.0", features = ["reporting"] }
+codespan-reporting = "0.12.0"
+derive_more = { version = "2.0.1", features = ["from", "display"] }
 clap = { version = "4.5.13", features = ["derive"] }
-unicode-width = "0.1.14"
+unicode-width = "0.2.0"
