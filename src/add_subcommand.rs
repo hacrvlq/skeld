@@ -9,7 +9,7 @@ use std::{
 	process::{self, Command},
 };
 
-use crate::{dirs, AddArgs};
+use crate::{AddArgs, dirs};
 
 type ModResult<T> = Result<T, Box<dyn Error>>;
 

@@ -1,17 +1,17 @@
 use std::path::Path;
 
 use super::{
+	ModResult, ParseContext,
 	lib::{
-		self as parse_lib, diagnostics, ArrayOption, BaseOption, BoolOption, ConfigOption, Diagnostic,
-		StringOption, TomlKey, TomlValue,
+		self as parse_lib, ArrayOption, BaseOption, BoolOption, ConfigOption, Diagnostic, StringOption,
+		TomlKey, TomlValue, diagnostics,
 	},
 	path,
 	project_data::{self, ProjectDataOption},
-	ModResult, ParseContext,
 };
 use crate::{
-	ui_subcommand::{tui, Command, CommandData},
 	GlobalConfig,
+	ui_subcommand::{Command, CommandData, tui},
 };
 
 // generated with FIGlet using the larry3d font

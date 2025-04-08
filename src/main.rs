@@ -12,7 +12,7 @@ use clap::Parser as _;
 
 use crate::{
 	parse::ParseContext,
-	ui_subcommand::{tui, CommandData},
+	ui_subcommand::{CommandData, tui},
 };
 
 pub use error::{GenericError, GenericResult};

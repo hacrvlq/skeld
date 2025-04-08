@@ -7,8 +7,8 @@ use std::{
 
 use self::tui::{TuiData, UserSelection};
 use crate::{
-	parse::{ParseContext, PrelimParseState, ProjectDataFuture},
 	GenericResult,
+	parse::{ParseContext, PrelimParseState, ProjectDataFuture},
 };
 
 pub fn run(

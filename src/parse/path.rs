@@ -276,11 +276,13 @@ fn convert_dirs_err(
 	match err {
 		dirs::Error::UnknownHomeDir => CanonicalizationError {
 			labels: error_labels.clone(),
-			notes: vec![concat!(
-				"The home directory is first looked up in `$HOME`,\n",
-				"and then in `/etc/passwd` if `$HOME` does not exist."
-			)
-			.to_string()],
+			notes: vec![
+				concat!(
+					"The home directory is first looked up in `$HOME`,\n",
+					"and then in `/etc/passwd` if `$HOME` does not exist."
+				)
+				.to_string(),
+			],
 			..CanonicalizationError::main_message("could not determine the home directory")
 		},
 		dirs::Error::RelativeHomeDir { dir } => CanonicalizationError {

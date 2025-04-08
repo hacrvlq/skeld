@@ -9,7 +9,7 @@ use std::{
 };
 
 use self::lib::{self as parse_lib, MockOption, StringOption};
-use crate::{dirs, GlobalConfig};
+use crate::{GlobalConfig, dirs};
 
 pub use self::{
 	lib::{Diagnostic, FileDatabase},
@@ -130,7 +130,7 @@ fn get_toml_files_from_dir(dir: impl AsRef<Path>) -> ModResult<Vec<PathBuf>> {
 		Err(err) => match err.kind() {
 			io::ErrorKind::NotFound => return Ok(Vec::new()),
 			_ => {
-				return Err(format!("Failed to traverse directory `{}`:\n  {err}", dir.display()).into())
+				return Err(format!("Failed to traverse directory `{}`:\n  {err}", dir.display()).into());
 			}
 		},
 	};

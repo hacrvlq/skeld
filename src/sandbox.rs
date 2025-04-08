@@ -492,14 +492,18 @@ fn get_bpf_program() -> BpfProgram {
 
 	let blacklist_syscalls = [(
 		libc::SYS_ioctl,
-		vec![SeccompRule::new(vec![SeccompCondition::new(
-			1,
-			SeccompCmpArgLen::Dword,
-			SeccompCmpOp::MaskedEq(0xFFFF_FFFF),
-			libc::TIOCSTI,
-		)
-		.unwrap()])
-		.unwrap()],
+		vec![
+			SeccompRule::new(vec![
+				SeccompCondition::new(
+					1,
+					SeccompCmpArgLen::Dword,
+					SeccompCmpOp::MaskedEq(0xFFFF_FFFF),
+					libc::TIOCSTI,
+				)
+				.unwrap(),
+			])
+			.unwrap(),
+		],
 	)];
 	SeccompFilter::new(
 		blacklist_syscalls.into_iter().collect(),

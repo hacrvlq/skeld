@@ -6,14 +6,13 @@ use std::{
 };
 
 use crossterm::{
-	cursor,
+	ExecutableCommand as _, QueueableCommand as _, cursor,
 	event::{
 		self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent,
 		MouseEventKind,
 	},
 	style, terminal,
 	tty::IsTty as _,
-	ExecutableCommand as _, QueueableCommand as _,
 };
 use unicode_width::UnicodeWidthStr;
 

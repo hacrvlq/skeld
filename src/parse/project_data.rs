@@ -1,11 +1,12 @@
 use std::path::{Path, PathBuf};
 
 use super::{
+	ModResult, ParseContext,
 	lib::{
-		self as parse_lib, diagnostics, ArrayOption, BoolOption, PathBufOption, StringOption, TomlKey,
-		TomlTable, TomlValue,
+		self as parse_lib, ArrayOption, BoolOption, PathBufOption, StringOption, TomlKey, TomlTable,
+		TomlValue, diagnostics,
 	},
-	path, ModResult, ParseContext,
+	path,
 };
 use crate::{
 	project::{EditorCommand, ProjectData},
