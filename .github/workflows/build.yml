@@ -21,7 +21,8 @@ jobs:
       - name: Package
         id: package
         run: |
-          OUT_DIR=skeld-x86_64
+          VERSION_STR="v$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[0].version' | sed -e 's/-/_/g')"
+          OUT_DIR="skeld-$VERSION_STR-x86_64"
           mkdir -p $OUT_DIR/bin
           mkdir -p $OUT_DIR/share/man/man7
           mv target/x86_64-unknown-linux-gnu/release/skeld $OUT_DIR/bin/
