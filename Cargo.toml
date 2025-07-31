@@ -10,7 +10,7 @@ keywords = ["sandboxing", "supply-chain", "security", "project-launcher", "tui"]
 categories = ["command-line-interface"]
 readme = "docs/README.md"
 repository = "https://github.com/hacrvlq/skeld"
-license = "MIT"
+license = "MIT OR Apache-2.0"
 
 [profile.release]
 lto = true
