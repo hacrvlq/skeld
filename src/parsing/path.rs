@@ -2,7 +2,7 @@ use std::{env, iter, ops::Range, path::PathBuf};
 
 use crate::{
 	dirs,
-	parse::lib::{CanonicalizationError, CanonicalizationLabel},
+	parsing::lib::{CanonicalizationError, CanonicalizationLabel},
 };
 
 type ModResult<T> = Result<T, CanonicalizationError>;

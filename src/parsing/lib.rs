@@ -416,7 +416,7 @@ impl<V> ConfigOption for ArrayOption<V> {
 
 macro_rules! parse_table {
 	($table:expr => [$($opt:expr),*], docs-section: $docs_section:expr $(,)?) => {'blk: {
-		use $crate::parse::lib::*;
+		use $crate::parsing::lib::*;
 		for (key, value) in $table.iter() {
 			let mut eaten = false;
 			$(

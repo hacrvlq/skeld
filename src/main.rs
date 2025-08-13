@@ -1,7 +1,9 @@
 mod add_subcommand;
+#[path = "utils/dirs.rs"]
 mod dirs;
+#[path = "utils/error.rs"]
 mod error;
-mod parse;
+mod parsing;
 mod project;
 mod sandbox;
 mod ui_subcommand;
@@ -11,7 +13,7 @@ use std::{path::PathBuf, process::ExitCode};
 use clap::Parser as _;
 
 use crate::{
-	parse::ParseContext,
+	parsing::ParseContext,
 	ui_subcommand::{CommandData, tui},
 };
 
@@ -46,7 +48,7 @@ struct AddArgs {
 }
 
 fn main() -> ExitCode {
-	let mut file_database = parse::FileDatabase::new();
+	let mut file_database = parsing::FileDatabase::new();
 
 	match try_main(&mut file_database) {
 		Ok(code) => code,
@@ -56,7 +58,7 @@ fn main() -> ExitCode {
 		}
 	}
 }
-fn try_main(file_database: &mut parse::FileDatabase) -> GenericResult<ExitCode> {
+fn try_main(file_database: &mut parsing::FileDatabase) -> GenericResult<ExitCode> {
 	let args = CliArgs::parse();
 
 	let mut parse_ctx = ParseContext { file_database };
@@ -76,5 +78,5 @@ pub struct GlobalConfig {
 	pub colorscheme: tui::Colorscheme,
 	pub disable_help_text: bool,
 	pub commands: Vec<CommandData>,
-	pub global_project_data: parse::PrelimParseState,
+	pub global_project_data: parsing::PrelimParseState,
 }

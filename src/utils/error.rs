@@ -3,9 +3,9 @@ use std::{convert::From, error::Error, io};
 use codespan_reporting::term::{self, termcolor};
 use crossterm::tty::IsTty as _;
 
-use crate::parse::FileDatabase;
+use crate::parsing::FileDatabase;
 
-pub use crate::parse::Diagnostic;
+pub use crate::parsing::Diagnostic;
 
 // alternative to Box<dyn Error>, which also supports Diagnostic's
 #[derive(Debug, derive_more::From)]
