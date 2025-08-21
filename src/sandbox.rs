@@ -80,17 +80,7 @@ impl SandboxParameters {
 
 		bwrap_args.append(&mut get_virtual_fs_args(&self.fs_tree)?);
 
-		bwrap_args.extend_from_slice(&[
-			"--unshare-user".into(),
-			"--unshare-ipc".into(),
-			"--unshare-pid".into(),
-			"--unshare-cgroup-try".into(),
-		]);
-
-		// ensure that the sandbox command is terminated when the sandbox is closed
-		if !command.detach {
-			bwrap_args.push("--die-with-parent".into());
-		}
+		bwrap_args.extend_from_slice(&["--unshare-ipc".into(), "--unshare-pid".into()]);
 
 		Ok(bwrap_args)
 	}
