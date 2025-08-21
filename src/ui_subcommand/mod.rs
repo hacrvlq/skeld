@@ -149,7 +149,7 @@ impl Command {
 		let cmd_args = self.command.into_iter().skip(1);
 
 		if self.detach {
-			crate::command::detach_from_tty(true)?;
+			crate::command::detach_from_tty()?;
 		}
 
 		let mut child = OsCommand::new(&cmd)

@@ -35,7 +35,7 @@ impl SandboxParameters {
 		bwrap_command.args(command.args);
 
 		if command.detach {
-			command::detach_from_tty(false)?;
+			command::detach_from_tty()?;
 		} else {
 			// prevent TIOCSTI injections if controlling terminal is inherited
 			seccompiler::apply_filter(&get_bpf_program()).unwrap();

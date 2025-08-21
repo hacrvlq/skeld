@@ -8,7 +8,11 @@ use std::{
 	time::Duration,
 };
 
-use nix::{errno::Errno, unistd};
+use nix::{
+	errno::Errno,
+	sys::wait::{self, WaitStatus},
+	unistd,
+};
 
 #[derive(Clone, Debug)]
 pub struct Command {
@@ -21,7 +25,7 @@ pub struct Command {
 impl Command {
 	pub fn run(&self) -> Result<ExitCode, Box<dyn Error>> {
 		if self.detach {
-			detach_from_tty(false)?;
+			detach_from_tty()?;
 		};
 
 		let mut child = OsCommand::new(&self.program)
@@ -51,7 +55,7 @@ pub fn forward_child_exit_status(status: ExitStatus) -> ExitCode {
 
 // detach this process from the controlling terminal and
 // redirect stdout/stderr to a logfile
-pub fn detach_from_tty(keep_working_dir: bool) -> Result<(), String> {
+pub fn detach_from_tty() -> Result<(), String> {
 	let logdir = crate::dirs::get_skeld_state_dir()
 		.map_err(|err| format!("Failed to determine the skeld state directory:\n  {err}"))?;
 	fs::create_dir_all(&logdir).map_err(|err| {
@@ -67,6 +71,16 @@ pub fn detach_from_tty(keep_working_dir: bool) -> Result<(), String> {
 		create_logfile(logdir).map_err(|err| format!("Failed to create a logfile: {err}"))?;
 	// leak the file descriptor
 	let logfile_fd = logfile.into_raw_fd();
+
+	// SAFETY: program isn't multithreaded
+	match unsafe { unistd::fork() }.unwrap() {
+		unistd::ForkResult::Parent { child } => match wait::waitpid(child, None).unwrap() {
+			WaitStatus::Exited(_, code) => std::process::exit(code),
+			WaitStatus::Signaled(_, _, _) => std::process::exit(1),
+			status => panic!("Got unexpected wait status: {status:?}"),
+		},
+		unistd::ForkResult::Child => (),
+	}
 
 	println!(
 		concat!(
@@ -86,8 +100,13 @@ pub fn detach_from_tty(keep_working_dir: bool) -> Result<(), String> {
 	dup2(logfile_fd, 2).unwrap();
 	unistd::close(0).unwrap();
 
-	unistd::daemon(keep_working_dir, true)
-		.map_err(|err| format!("Failed to detach process: {err}"))?;
+	unistd::setsid().unwrap();
+
+	// SAFETY: program isn't multithreaded
+	match unsafe { unistd::fork() }.unwrap() {
+		unistd::ForkResult::Parent { .. } => std::process::exit(0),
+		unistd::ForkResult::Child => (),
+	}
 
 	Ok(())
 }
