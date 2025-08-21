@@ -149,7 +149,7 @@ impl Command {
 		let cmd_args = self.command.into_iter().skip(1);
 
 		if self.detach {
-			crate::sandbox::detach_process(true)?;
+			crate::command::detach_from_tty(true)?;
 		}
 
 		let mut child = OsCommand::new(&cmd)
@@ -158,13 +158,6 @@ impl Command {
 			.map_err(|err| format!("Failed to execute command `{cmd}`: {err}"))?;
 
 		let exit_status = child.wait().unwrap();
-
-		if let Some(code) = exit_status.code() {
-			Ok((code as u8).into())
-		} else if exit_status.success() {
-			Ok(ExitCode::SUCCESS)
-		} else {
-			Ok(ExitCode::FAILURE)
-		}
+		Ok(crate::command::forward_child_exit_status(exit_status))
 	}
 }

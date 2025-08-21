@@ -1,4 +1,5 @@
 mod add_subcommand;
+mod command;
 #[path = "utils/dirs.rs"]
 mod dirs;
 #[path = "utils/error.rs"]

@@ -4,7 +4,7 @@ use std::{
 	process::ExitCode,
 };
 
-use crate::sandbox::{Command, SandboxParameters};
+use crate::{command::Command, sandbox::SandboxParameters};
 
 #[derive(Clone)]
 pub struct ProjectData {
@@ -52,7 +52,7 @@ impl ProjectData {
 }
 impl EditorCommand {
 	fn get_command(self, working_dir: PathBuf, initial_file: Option<String>) -> Command {
-		let command = if let Some(initial_file) = initial_file {
+		let command: Vec<_> = if let Some(initial_file) = initial_file {
 			self
 				.cmd_with_file
 				.into_iter()
@@ -62,8 +62,10 @@ impl EditorCommand {
 			self.cmd_without_file.into_iter().collect()
 		};
 
+		let mut command_iter = command.into_iter();
 		Command {
-			cmd: command,
+			program: command_iter.next().expect("command should not be empty"),
+			args: command_iter.collect(),
 			working_dir,
 			detach: self.detach,
 		}
@@ -74,15 +76,14 @@ fn detect_nix_shell_file(project_path: impl AsRef<Path>) -> bool {
 	project_path.join("shell.nix").exists() || project_path.join("default.nix").exists()
 }
 fn wrap_cmd_with_nix_shell(cmd: Command) -> Command {
-	let escaped_cmd = cmd.cmd.iter().map(bash_string_escape).collect::<Vec<_>>();
-	let wrapped_cmd = vec![
-		"nix-shell".to_string(),
-		"--command".to_string(),
-		escaped_cmd.join(" "),
-	];
+	let escaped_cmd = std::iter::once(cmd.program)
+		.chain(cmd.args)
+		.map(bash_string_escape)
+		.collect::<Vec<_>>();
 
 	Command {
-		cmd: wrapped_cmd,
+		program: "nix-shell".to_string(),
+		args: vec!["--command".to_string(), escaped_cmd.join(" ")],
 		..cmd
 	}
 }

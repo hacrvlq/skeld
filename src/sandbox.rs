@@ -3,19 +3,17 @@ use std::{
 	env,
 	error::Error,
 	ffi::OsString,
-	fs::{self, File},
 	io,
-	os::fd::IntoRawFd as _,
 	path::{Component as PathComponents, Path, PathBuf},
-	process::{Command as OsCommand, ExitCode, ExitStatus},
-	time::Duration,
+	process::{Command as OsCommand, ExitCode},
 };
 
-use nix::{errno::Errno, unistd};
 use seccompiler::{
 	BpfProgram, SeccompAction, SeccompCmpArgLen, SeccompCmpOp, SeccompCondition, SeccompFilter,
 	SeccompRule, TargetArch as SeccompArch,
 };
+
+use crate::command::{self, Command};
 
 #[derive(Clone)]
 pub struct SandboxParameters {
@@ -27,24 +25,17 @@ pub enum EnvVarWhitelist {
 	All,
 	List(Vec<OsString>),
 }
-#[derive(Clone, Debug)]
-pub struct Command {
-	pub cmd: Vec<String>,
-	pub working_dir: PathBuf,
-	pub detach: bool,
-}
 impl SandboxParameters {
 	pub fn run_cmd(&self, command: Command) -> Result<ExitCode, Box<dyn Error>> {
-		assert!(!command.cmd.is_empty());
-
 		let bwrap_args = self.get_bwrap_args(&command)?;
 		let mut bwrap_command = OsCommand::new("bwrap");
 		bwrap_command.args(bwrap_args);
 		bwrap_command.arg("--");
-		bwrap_command.args(command.cmd);
+		bwrap_command.arg(command.program);
+		bwrap_command.args(command.args);
 
 		if command.detach {
-			detach_process(false)?;
+			command::detach_from_tty(false)?;
 		} else {
 			// prevent TIOCSTI injections if controlling terminal is inherited
 			seccompiler::apply_filter(&get_bpf_program()).unwrap();
@@ -65,7 +56,7 @@ impl SandboxParameters {
 			Ok(ExitCode::SUCCESS)
 		} else {
 			let sandbox_status = bwrap_process.wait().unwrap();
-			Ok(convert_exit_status_to_code(sandbox_status))
+			Ok(command::forward_child_exit_status(sandbox_status))
 		}
 	}
 
@@ -142,124 +133,6 @@ fn get_envvar_whitelist_args(envvar_whitelists: &[OsString]) -> Vec<OsString> {
 		args.extend_from_slice(&["--setenv".into(), envvar.into(), var_value]);
 	}
 	args
-}
-fn convert_exit_status_to_code(status: ExitStatus) -> ExitCode {
-	if let Some(code) = status.code() {
-		(code as u8).into()
-	} else if status.success() {
-		ExitCode::SUCCESS
-	} else {
-		ExitCode::FAILURE
-	}
-}
-
-impl Command {
-	// run command without a sandbox
-	pub fn run(&self) -> Result<ExitCode, Box<dyn Error>> {
-		assert!(!self.cmd.is_empty());
-
-		if self.detach {
-			detach_process(false)?;
-		};
-
-		let mut child = OsCommand::new(&self.cmd[0])
-			.args(self.cmd.iter().skip(1))
-			.current_dir(&self.working_dir)
-			.spawn()
-			.map_err(|err| format!("Failed to execute command `{}`: {err}", &self.cmd[0]))?;
-
-		if self.detach {
-			Ok(ExitCode::SUCCESS)
-		} else {
-			let child_status = child.wait().unwrap();
-			Ok(convert_exit_status_to_code(child_status))
-		}
-	}
-}
-// detach this process from the controlling terminal and
-// redirect stdout/stderr to a logfile
-pub fn detach_process(keep_working_dir: bool) -> Result<(), String> {
-	let logdir = crate::dirs::get_skeld_state_dir()
-		.map_err(|err| format!("Failed to determine the skeld state directory:\n  {err}"))?;
-	fs::create_dir_all(&logdir).map_err(|err| {
-		format!(
-			"Failed to create the skeld state directory `{}`:\n  {err}",
-			logdir.display()
-		)
-	})?;
-
-	remove_old_logfiles(&logdir);
-
-	let (logfile_path, logfile) =
-		create_logfile(logdir).map_err(|err| format!("Failed to create a logfile: {err}"))?;
-	// leak the file descriptor
-	let logfile_fd = logfile.into_raw_fd();
-
-	println!(
-		concat!(
-			"NOTE: Detaching from terminal;\n",
-			"      further output will be redirected to `{}`",
-		),
-		logfile_path.display()
-	);
-	// wrapper of dup2 handling EINTR
-	let dup2 = |oldfd, newfd| loop {
-		match unistd::dup2(oldfd, newfd) {
-			Err(Errno::EINTR) => (),
-			other => return other,
-		}
-	};
-	dup2(logfile_fd, 1).unwrap();
-	dup2(logfile_fd, 2).unwrap();
-	unistd::close(0).unwrap();
-
-	unistd::daemon(keep_working_dir, true)
-		.map_err(|err| format!("Failed to detach process: {err}"))?;
-
-	Ok(())
-}
-// remove logfiles older than 24h, errors are silently ignored
-fn remove_old_logfiles(logdir: impl AsRef<Path>) {
-	let Ok(dir_iter) = fs::read_dir(logdir) else {
-		return;
-	};
-
-	dir_iter
-		.filter_map(Result::ok)
-		.filter(|dir_entry| dir_entry.path().extension().is_some_and(|ext| ext == "log"))
-		.filter(|dir_entry| {
-			let elapsed_time = dir_entry
-				.metadata()
-				.ok()
-				.and_then(|metadata| metadata.accessed().ok())
-				.and_then(|mtime| mtime.elapsed().ok());
-			let Some(elapsed_time) = elapsed_time else {
-				// remove the file in case of an error
-				return false;
-			};
-			elapsed_time > Duration::from_secs(60 * 60 * 24)
-		})
-		.for_each(|dir_entry| {
-			// NOTE: directories are not removed
-			let _ = fs::remove_file(dir_entry.path());
-		});
-}
-fn create_logfile(logdir: impl AsRef<Path>) -> io::Result<(PathBuf, File)> {
-	let logdir = logdir.as_ref();
-
-	for i in 1..1_440 {
-		let possible_path = logdir.join(format!("skeld.{i}.log"));
-		match File::create_new(&possible_path) {
-			Ok(file) => return Ok((possible_path, file)),
-			Err(err) if err.kind() == io::ErrorKind::AlreadyExists => (),
-			Err(other_err) => return Err(other_err),
-		}
-	}
-
-	Err(io::Error::new(
-		io::ErrorKind::Other,
-		"all logfile names are occupied",
-	))
 }
 
 // path tree of all virtual-fs-entries with the following normalization:
