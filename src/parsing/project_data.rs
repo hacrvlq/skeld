@@ -90,7 +90,6 @@ pub struct PrelimParseState {
 	virtual_fs: VirtualFSOption,
 	whitelist_envvars: ArrayOption<String>,
 	whitelist_all_envvars: BoolOption,
-	auto_nixshell: BoolOption,
 	disable_sandbox: BoolOption,
 
 	parsed_files: Vec<PathBuf>,
@@ -109,7 +108,6 @@ impl PrelimParseState {
 				Ok(value.to_string())
 			}),
 			whitelist_all_envvars: BoolOption::new("whitelist-all-envvars"),
-			auto_nixshell: BoolOption::new("auto-nixshell"),
 			disable_sandbox: BoolOption::new("no-sandbox"),
 
 			parsed_files: Vec::new(),
@@ -123,7 +121,6 @@ impl PrelimParseState {
 		let fs_tree = self.virtual_fs.tree;
 		let whitelist_all_envvars = self.whitelist_all_envvars.get_value().unwrap_or_default();
 		let whitelist_envvars = self.whitelist_envvars.get_value().unwrap_or_default();
-		let auto_nixshell = self.auto_nixshell.get_value().unwrap_or_default();
 		let disable_sandbox = self.disable_sandbox.get_value().unwrap_or_default();
 
 		let whitelist_envvars = if whitelist_all_envvars {
@@ -134,7 +131,6 @@ impl PrelimParseState {
 		};
 		Ok(ProjectData {
 			project_dir,
-			auto_nixshell,
 			disable_sandbox,
 			initial_file,
 			editor,
@@ -174,7 +170,6 @@ impl PrelimParseState {
 				self.virtual_fs,
 				self.whitelist_envvars,
 				self.whitelist_all_envvars,
-				self.auto_nixshell,
 				self.disable_sandbox
 			],
 			docs-section: "PROJECT DATA FORMAT",

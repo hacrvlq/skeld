@@ -1,8 +1,4 @@
-use std::{
-	error::Error,
-	path::{Path, PathBuf},
-	process::ExitCode,
-};
+use std::{error::Error, path::PathBuf, process::ExitCode};
 
 use crate::{command::Command, sandbox::SandboxParameters};
 
@@ -11,7 +7,6 @@ pub struct ProjectData {
 	pub project_dir: PathBuf,
 	pub initial_file: Option<String>,
 	pub editor: EditorCommand,
-	pub auto_nixshell: bool,
 	pub sandbox_params: SandboxParameters,
 	pub disable_sandbox: bool,
 }
@@ -36,13 +31,6 @@ impl ProjectData {
 		let project_cmd = self
 			.editor
 			.get_command(self.project_dir.clone(), self.initial_file);
-		let use_nix_shell = self.auto_nixshell && detect_nix_shell_file(&self.project_dir);
-		let project_cmd = if use_nix_shell {
-			wrap_cmd_with_nix_shell(project_cmd)
-		} else {
-			project_cmd
-		};
-
 		if self.disable_sandbox {
 			project_cmd.run()
 		} else {
@@ -70,23 +58,4 @@ impl EditorCommand {
 			detach: self.detach,
 		}
 	}
-}
-fn detect_nix_shell_file(project_path: impl AsRef<Path>) -> bool {
-	let project_path = project_path.as_ref();
-	project_path.join("shell.nix").exists() || project_path.join("default.nix").exists()
-}
-fn wrap_cmd_with_nix_shell(cmd: Command) -> Command {
-	let escaped_cmd = std::iter::once(cmd.program)
-		.chain(cmd.args)
-		.map(bash_string_escape)
-		.collect::<Vec<_>>();
-
-	Command {
-		program: "nix-shell".to_string(),
-		args: vec!["--command".to_string(), escaped_cmd.join(" ")],
-		..cmd
-	}
-}
-fn bash_string_escape(str: impl Into<String>) -> String {
-	format!("$'{}'", str.into().as_bytes().escape_ascii())
 }

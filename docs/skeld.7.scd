@@ -55,8 +55,6 @@ project-dir = "..."
 # file to be opened initially (optional)
 # NOTE: the provided path should be relative to 'project-dir'
 initial-file = "..."
-# automatically open project in nix-shell if 'shell.nix' or 'default.nix' exists
-auto-nixshell = true # Default: false
 # disable the sandbox altogether
 no-sandbox = true # Default: false
 
