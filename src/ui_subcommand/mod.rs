@@ -134,7 +134,6 @@ pub struct CommandData {
 	pub keybind: String,
 	pub command: Command,
 }
-//TODO: make project's expressive enough to also handle this concept
 #[derive(Clone, Debug)]
 pub struct Command {
 	pub command: Vec<String>,

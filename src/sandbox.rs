@@ -103,7 +103,6 @@ fn get_virtual_fs_args(fs_tree: &VirtualFSTree<()>) -> Result<Vec<OsString>, Box
 				let target_path = path
 					.read_link()
 					.map_err(|err| format!("Failed to read symlink `{}`: {err}", path.display()))?;
-				//TODO: consider security implications of the change in ownership
 				vec!["--symlink".into(), target_path.into(), path.into()]
 			}
 			VirtualFSEntryType::Tmpfs => {
