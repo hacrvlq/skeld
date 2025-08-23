@@ -37,7 +37,7 @@ impl SandboxParameters {
 		if command.detach {
 			command::detach_from_tty()?;
 		} else {
-			// prevent TIOCSTI injections if controlling terminal is inherited
+			// prevent TIOCSTI/TIOCLINUX injections if controlling terminal is inherited
 			seccompiler::apply_filter(&get_bpf_program()).unwrap();
 		}
 		let mut bwrap_process = bwrap_command.spawn().map_err(|err| {
@@ -337,7 +337,7 @@ impl PartialOrd for VirtualFSEntryType {
 	}
 }
 
-// blacklists TIOCSTI
+// blacklists the TIOCSTI and TIOCLINUX ioctls
 fn get_bpf_program() -> BpfProgram {
 	#[cfg(target_arch = "x86_64")]
 	let arch = SeccompArch::x86_64;
@@ -352,15 +352,28 @@ fn get_bpf_program() -> BpfProgram {
 	)))]
 	compile_error!("only x86_64, aarch64 and riscv64 are supported");
 
+	const IOCTL_OP_MASK: u64 = 0xFFFF_FFFF;
+	const _: () = assert!(libc::TIOCSTI & !IOCTL_OP_MASK == 0);
+	const _: () = assert!(libc::TIOCLINUX & !IOCTL_OP_MASK == 0);
 	let blacklist_syscalls = [(
 		libc::SYS_ioctl,
 		vec![
 			SeccompRule::new(vec![
 				SeccompCondition::new(
 					1,
-					SeccompCmpArgLen::Dword,
-					SeccompCmpOp::MaskedEq(0xFFFF_FFFF),
+					SeccompCmpArgLen::Qword,
+					SeccompCmpOp::MaskedEq(IOCTL_OP_MASK),
 					libc::TIOCSTI,
+				)
+				.unwrap(),
+			])
+			.unwrap(),
+			SeccompRule::new(vec![
+				SeccompCondition::new(
+					1,
+					SeccompCmpArgLen::Qword,
+					SeccompCmpOp::MaskedEq(IOCTL_OP_MASK),
+					libc::TIOCLINUX,
 				)
 				.unwrap(),
 			])
