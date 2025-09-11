@@ -3,11 +3,13 @@ use std::{
 	env,
 	error::Error,
 	ffi::OsString,
-	io,
+	io::{self, Write as _},
+	os::fd::IntoRawFd as _,
 	path::{Component as PathComponents, Path, PathBuf},
 	process::{Command as OsCommand, ExitCode},
 };
 
+use nix::unistd;
 use seccompiler::{
 	BpfProgram, SeccompAction, SeccompCmpArgLen, SeccompCmpOp, SeccompCondition, SeccompFilter,
 	SeccompRule, TargetArch as SeccompArch,
@@ -36,10 +38,8 @@ impl SandboxParameters {
 
 		if command.detach {
 			command::detach_from_tty()?;
-		} else {
-			// prevent TIOCSTI/TIOCLINUX injections if controlling terminal is inherited
-			seccompiler::apply_filter(&get_bpf_program()).unwrap();
 		}
+
 		let mut bwrap_process = bwrap_command.spawn().map_err(|err| {
 			let mut error_string = format!("Failed to execute bwrap: {err}");
 			if err.kind() == io::ErrorKind::NotFound {
@@ -61,7 +61,28 @@ impl SandboxParameters {
 	}
 
 	fn get_bwrap_args(&self, command: &Command) -> Result<Vec<OsString>, Box<dyn Error>> {
-		let mut bwrap_args = Vec::new();
+		let mut bwrap_args: Vec<OsString> = Vec::new();
+
+		if !command.detach {
+			let bpf_program = get_bpf_program();
+
+			let (pipe_reader, pipe_writer) = unistd::pipe().unwrap();
+			let mut pipe_writer: io::PipeWriter = pipe_writer.into();
+			let bpf_program_fd = pipe_reader.into_raw_fd();
+
+			for instr in bpf_program {
+				let instr_bytes = unsafe {
+					std::slice::from_raw_parts(
+						(&instr as *const seccompiler::sock_filter) as *const u8,
+						std::mem::size_of_val(&instr),
+					)
+				};
+				pipe_writer.write_all(instr_bytes).unwrap();
+			}
+			drop(pipe_writer);
+
+			bwrap_args.extend_from_slice(&["--seccomp".into(), bpf_program_fd.to_string().into()]);
+		}
 
 		match &self.envvar_whitelist {
 			EnvVarWhitelist::All => (),
