@@ -2,7 +2,7 @@ use std::{
 	cmp::Ordering,
 	env,
 	error::Error,
-	ffi::OsString,
+	ffi::{OsStr, OsString},
 	io::{self, Write as _},
 	os::fd::IntoRawFd as _,
 	path::{Component as PathComponents, Path, PathBuf},
@@ -29,9 +29,15 @@ pub enum EnvVarWhitelist {
 }
 impl SandboxParameters {
 	pub fn run_cmd(&self, command: Command) -> Result<ExitCode, Box<dyn Error>> {
-		let bwrap_args = self.get_bwrap_args(&command)?;
 		let mut bwrap_command = OsCommand::new("bwrap");
-		bwrap_command.args(bwrap_args);
+
+		let args_data = self.get_bwrap_args(&command)?.join(OsStr::new("\0"));
+		let (pipe_reader, pipe_writer) = unistd::pipe().unwrap();
+		io::PipeWriter::from(pipe_writer)
+			.write_all(args_data.as_encoded_bytes())
+			.unwrap();
+		bwrap_command.args(["--args", &pipe_reader.into_raw_fd().to_string()]);
+
 		bwrap_command.arg("--");
 		bwrap_command.arg(command.program);
 		bwrap_command.args(command.args);
