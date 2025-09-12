@@ -6,8 +6,8 @@ use super::{
 		self as parse_lib, ArrayOption, BaseOption, BoolOption, ConfigOption, Diagnostic, StringOption,
 		TomlKey, TomlValue, diagnostics,
 	},
-	path,
 	project_data::{self, ProjectDataOption},
+	string_interpolation,
 };
 use crate::{
 	GlobalConfig,
@@ -82,7 +82,7 @@ fn parse_command_data(value: &TomlValue) -> ModResult<CommandData> {
 	let mut keybind = StringOption::new("keybind");
 	let mut command = ArrayOption::new("command", false, |raw_value| {
 		let value = raw_value.as_str()?;
-		path::substitute_placeholder(value, false)
+		string_interpolation::substitute_placeholder(value, false)
 			.map_err(|err| diagnostics::failed_canonicalization(raw_value, &err).into())
 	});
 	let mut detach = BoolOption::new("detach");

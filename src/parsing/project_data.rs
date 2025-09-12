@@ -6,9 +6,10 @@ use super::{
 		self as parse_lib, ArrayOption, BoolOption, PathBufOption, StringOption, TomlKey, TomlTable,
 		TomlValue, diagnostics,
 	},
-	path,
+	string_interpolation,
 };
 use crate::{
+	parsing::lib::{CanonicalizationError, CanonicalizationLabel},
 	project::{EditorCommand, ProjectData},
 	sandbox::{EnvVarWhitelist, FSTreeError, SandboxParameters, VirtualFSEntryType, VirtualFSTree},
 };
@@ -97,9 +98,9 @@ pub struct PrelimParseState {
 impl PrelimParseState {
 	pub fn empty() -> Self {
 		Self {
-			project_dir: PathBufOption::new("project-dir", |str| path::canonicalize_path(str)),
+			project_dir: PathBufOption::new("project-dir", |str| canonicalize_path(str)),
 			initial_file: StringOption::new_with_canonicalization("initial-file", |str| {
-				path::substitute_placeholder(str, false)
+				string_interpolation::substitute_placeholder(str, false)
 			}),
 			editor: EditorCommandOption::new(),
 			virtual_fs: VirtualFSOption::new(),
@@ -157,7 +158,7 @@ impl PrelimParseState {
 	fn parse_table(&mut self, table: &TomlTable, ctx: &mut ParseContext) -> ModResult<()> {
 		let mut include_option = ArrayOption::new("include", false, |raw_value| {
 			let value = raw_value.as_str()?;
-			path::canonicalize_include_path(value)
+			Self::canonicalize_include_path(value)
 				.map_err(|err| diagnostics::failed_canonicalization(raw_value, &err).into())
 		});
 
@@ -179,6 +180,61 @@ impl PrelimParseState {
 			self.parse_path(include_path, ctx)?;
 		}
 		Ok(())
+	}
+	fn canonicalize_include_path(path: impl Into<String>) -> Result<PathBuf, CanonicalizationError> {
+		let path = PathBuf::from(string_interpolation::substitute_placeholder(path, false)?);
+
+		if path.is_absolute() {
+			return Ok(path);
+		};
+
+		let mut matching_files = Vec::new();
+		let skeld_data_dirs =
+			crate::dirs::get_skeld_data_dirs().map_err(|err| CanonicalizationError {
+				notes: vec![err.to_string()],
+				..CanonicalizationError::main_message("could not determine the skeld data directories")
+			})?;
+		for data_root_dir in skeld_data_dirs {
+			let include_root_dir = data_root_dir.join("include");
+			let mut possible_file_path = include_root_dir.join(&path);
+			possible_file_path.as_mut_os_string().push(".toml");
+			if possible_file_path.exists() {
+				matching_files.push(possible_file_path);
+			}
+		}
+
+		if matching_files.is_empty() {
+			let mut notes = vec![format!(
+				"include files are searched in `<SKELD-DATA>/include`\n(see `{man_cmd}` for more information)",
+				man_cmd = crate::error::get_manpage_cmd("FILES"),
+			)];
+			if path.extension().is_some_and(|ext| ext == "toml") {
+				notes.push(format!(
+					"Note that an extra `toml` extension is appended, so the file `{}.toml` is actually searched.",
+					path.display()
+				));
+			}
+			Err(CanonicalizationError {
+				notes,
+				..CanonicalizationError::main_message("include file not found")
+			})
+		} else if matching_files.len() > 1 {
+			let matching_files_str = matching_files
+				.iter()
+				.map(|path| format!("- {}", path.display()))
+				.collect::<Vec<_>>()
+				.join("\n");
+			Err(CanonicalizationError {
+				labels: vec![CanonicalizationLabel::primary_without_span(
+					"found multiple matching files",
+				)],
+				notes: vec![format!("matching files are:\n{matching_files_str}")],
+				..CanonicalizationError::main_message("ambiguous include file")
+			})
+		} else {
+			assert!(matching_files.len() == 1);
+			Ok(matching_files.into_iter().next().unwrap())
+		}
 	}
 }
 
@@ -212,7 +268,7 @@ impl parse_lib::ConfigOption for VirtualFSOption {
 
 		let mut patharray_option = ArrayOption::new(key.name(), false, |raw_value| {
 			let value = raw_value.as_str()?;
-			let parsed_value = path::canonicalize_path(value)
+			let parsed_value = canonicalize_path(value)
 				.map_err(|err| diagnostics::failed_canonicalization(raw_value, &err))?;
 			Ok((parsed_value, raw_value.loc().clone()))
 		});
@@ -272,12 +328,12 @@ impl parse_lib::ConfigOption for EditorCommandOption {
 
 		let mut cmd_with_file = ArrayOption::new("cmd-with-file", false, |raw_value| {
 			let value = raw_value.as_str()?;
-			path::substitute_placeholder(value, true)
+			string_interpolation::substitute_placeholder(value, true)
 				.map_err(|err| diagnostics::failed_canonicalization(raw_value, &err).into())
 		});
 		let mut cmd_without_file = ArrayOption::new("cmd-without-file", false, |raw_value| {
 			let value = raw_value.as_str()?;
-			path::substitute_placeholder(value, false)
+			string_interpolation::substitute_placeholder(value, false)
 				.map_err(|err| diagnostics::failed_canonicalization(raw_value, &err).into())
 		});
 		let mut detach = BoolOption::new("detach");
@@ -320,4 +376,29 @@ impl parse_lib::ConfigOption for EditorCommandOption {
 		self.value = Some((editor_cmd, key.loc().clone()));
 		Ok(true)
 	}
+}
+
+fn canonicalize_path(path: impl Into<String>) -> Result<PathBuf, CanonicalizationError> {
+	let path = path.into();
+
+	let substituted_path_str = string_interpolation::substitute_placeholder(&path, false)?;
+	let substituted_path = PathBuf::from(&substituted_path_str);
+
+	if substituted_path.is_relative() {
+		let mut notes = Vec::new();
+		if path != substituted_path_str {
+			notes.push(format!(
+				"after the placeholders have been resolved: `{substituted_path_str}`"
+			));
+		}
+		return Err(CanonicalizationError {
+			labels: vec![CanonicalizationLabel::primary_without_span(
+				"this path must be absolute",
+			)],
+			notes,
+			..CanonicalizationError::main_message("unallowed relative path")
+		});
+	}
+
+	Ok(substituted_path)
 }

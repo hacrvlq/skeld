@@ -1,7 +1,7 @@
 mod config;
 mod lib;
-mod path;
 mod project_data;
+mod string_interpolation;
 
 use std::{
 	fs, io,
