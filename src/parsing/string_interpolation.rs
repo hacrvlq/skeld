@@ -9,44 +9,32 @@ type ModResult<T> = Result<T, CanonicalizationError>;
 
 // resolves all placeholders except $(FILE),
 // allow_file_var determines whether the $(FILE) placeholder is allowed
-pub fn substitute_placeholder(str: impl Into<String>, allow_file_var: bool) -> ModResult<String> {
-	let str = str.into();
-
-	let resolve_placeholder = |placeholder| {
-		Ok(match placeholder {
-			Placeholder::Tilde { idx: pos } => {
-				let resolved_expr =
-					resolve_homedir_expr(&str[pos..pos + 1]).map_err(|err| err.shift(pos))?;
-				(pos..pos + 1, resolved_expr)
-			}
-			Placeholder::BracketPair {
-				ty: BracketType::Square,
-				span,
-				inner_span,
-			} => {
-				let resolved_expr = resolve_envvar_expr(&str[inner_span.clone()], allow_file_var)
-					.map_err(|err| err.shift(inner_span.start))?;
-				(span, resolved_expr)
-			}
-			Placeholder::BracketPair {
-				ty: BracketType::Round,
-				span,
-				inner_span,
-			} => {
-				let resolved_expr = resolve_variable_expr(&str[inner_span.clone()], allow_file_var)
-					.map_err(|err| err.shift(inner_span.start))?
-					// preserve variables that need to be resolved later
-					.unwrap_or_else(|| str[span.clone()].to_string());
-				(span, resolved_expr)
-			}
-		})
+pub fn resolve_placeholders(str: &str, allow_file_var: bool) -> ModResult<String> {
+	let resolve_placeholder = |placeholder| match placeholder {
+		Placeholder::Tilde { idx: pos } => resolve_homedir_expr(&str[pos..pos + 1])
+			.map_err(|err| err.shift(pos))
+			.map(|str| (pos..pos + 1, str)),
+		Placeholder::BracketPair {
+			ty: BracketType::Square,
+			span,
+			inner_span,
+		} => resolve_envvar_expr(&str[inner_span.clone()], allow_file_var)
+			.map_err(|err| err.shift(inner_span.start))
+			.map(|str| (span, str)),
+		Placeholder::BracketPair {
+			ty: BracketType::Round,
+			span,
+			inner_span,
+		} => resolve_variable_expr(&str[inner_span.clone()], allow_file_var)
+			.map_err(|err| err.shift(inner_span.start))
+			.map(|str| (span, str)),
 	};
-
-	let replacements = find_toplevel_placeholders(&str)?
+	let replacements = find_toplevel_placeholders(str)?
 		.into_iter()
 		.map(resolve_placeholder)
 		.collect::<ModResult<Vec<_>>>()?;
-	let substituted_str = replace_multiple_ranges(&str, replacements);
+
+	let substituted_str = replace_multiple_ranges(str, replacements);
 	Ok(substituted_str)
 }
 fn resolve_homedir_expr(expr: &str) -> ModResult<String> {
@@ -87,7 +75,7 @@ fn resolve_envvar_expr(expr: &str, allow_file_var: bool) -> ModResult<String> {
 		Ok(value) => Ok(value),
 		Err(env::VarError::NotPresent) if env_var_alt.is_some() => {
 			let env_var_alt = env_var_alt.unwrap();
-			substitute_placeholder(env_var_alt, allow_file_var)
+			resolve_placeholders(env_var_alt, allow_file_var)
 				.map_err(|err| err.shift(env_var_name.len() + 1))
 		}
 		Err(env::VarError::NotPresent) => Err(CanonicalizationError {
@@ -106,9 +94,7 @@ fn resolve_envvar_expr(expr: &str, allow_file_var: bool) -> ModResult<String> {
 		}),
 	}
 }
-// NOTE: returns None if the variable needs to be resolved
-//       at a later stage (e.g. $(FILE))
-fn resolve_variable_expr(expr: &str, allow_file_var: bool) -> ModResult<Option<String>> {
+fn resolve_variable_expr(expr: &str, allow_file_var: bool) -> ModResult<String> {
 	if let Some(placeholder) = find_next_placeholder_poi(expr) {
 		return Err(CanonicalizationError {
 			labels: vec![CanonicalizationLabel::primary_with_span(
@@ -147,11 +133,11 @@ fn resolve_variable_expr(expr: &str, allow_file_var: bool) -> ModResult<Option<S
 				)],
 				..CanonicalizationError::main_message(format!("invalid {dirname} directory path"))
 			})?;
-		return Ok(Some(resolved_expr_str.to_string()));
+		return Ok(resolved_expr_str.to_string());
 	}
 
 	if allow_file_var && expr == "FILE" {
-		return Ok(None);
+		return Ok("$(FILE)".to_string());
 	}
 
 	// unknown variable

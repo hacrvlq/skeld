@@ -98,9 +98,9 @@ pub struct PrelimParseState {
 impl PrelimParseState {
 	pub fn empty() -> Self {
 		Self {
-			project_dir: PathBufOption::new("project-dir", |str| canonicalize_path(str)),
+			project_dir: PathBufOption::new("project-dir", canonicalize_path),
 			initial_file: StringOption::new_with_canonicalization("initial-file", |str| {
-				string_interpolation::substitute_placeholder(str, false)
+				string_interpolation::resolve_placeholders(str, false)
 			}),
 			editor: EditorCommandOption::new(),
 			virtual_fs: VirtualFSOption::new(),
@@ -181,8 +181,8 @@ impl PrelimParseState {
 		}
 		Ok(())
 	}
-	fn canonicalize_include_path(path: impl Into<String>) -> Result<PathBuf, CanonicalizationError> {
-		let path = PathBuf::from(string_interpolation::substitute_placeholder(path, false)?);
+	fn canonicalize_include_path(path: &str) -> Result<PathBuf, CanonicalizationError> {
+		let path = PathBuf::from(string_interpolation::resolve_placeholders(path, false)?);
 
 		if path.is_absolute() {
 			return Ok(path);
@@ -328,12 +328,12 @@ impl parse_lib::ConfigOption for EditorCommandOption {
 
 		let mut cmd_with_file = ArrayOption::new("cmd-with-file", false, |raw_value| {
 			let value = raw_value.as_str()?;
-			string_interpolation::substitute_placeholder(value, true)
+			string_interpolation::resolve_placeholders(value, true)
 				.map_err(|err| diagnostics::failed_canonicalization(raw_value, &err).into())
 		});
 		let mut cmd_without_file = ArrayOption::new("cmd-without-file", false, |raw_value| {
 			let value = raw_value.as_str()?;
-			string_interpolation::substitute_placeholder(value, false)
+			string_interpolation::resolve_placeholders(value, false)
 				.map_err(|err| diagnostics::failed_canonicalization(raw_value, &err).into())
 		});
 		let mut detach = BoolOption::new("detach");
@@ -378,10 +378,8 @@ impl parse_lib::ConfigOption for EditorCommandOption {
 	}
 }
 
-fn canonicalize_path(path: impl Into<String>) -> Result<PathBuf, CanonicalizationError> {
-	let path = path.into();
-
-	let substituted_path_str = string_interpolation::substitute_placeholder(&path, false)?;
+fn canonicalize_path(path: &str) -> Result<PathBuf, CanonicalizationError> {
+	let substituted_path_str = string_interpolation::resolve_placeholders(path, false)?;
 	let substituted_path = PathBuf::from(&substituted_path_str);
 
 	if substituted_path.is_relative() {
