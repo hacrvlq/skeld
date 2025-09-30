@@ -38,7 +38,7 @@ pub fn default_config() -> GlobalConfig {
 		colorscheme: DEFAULT_COLORSCHEME,
 		disable_help_text: false,
 		commands: Vec::new(),
-		global_project_data: project_data::PrelimParseState::empty(),
+		global_project_data: project_data::RawProjectData::empty(),
 	}
 }
 
@@ -51,7 +51,7 @@ pub fn parse_config_file(
 		parse_lib::parse_toml_file(path.as_ref(), ctx.file_database, &mut outlivers)?;
 
 	let mut global_project_data =
-		ProjectDataOption::new("project", project_data::PrelimParseState::empty(), ctx);
+		ProjectDataOption::new("project", project_data::RawProjectData::empty(), ctx);
 	let mut commands = ArrayOption::new("commands", false, parse_command_data);
 	let mut colorscheme = ColorschemeOption::new();
 	let mut banner = StringOption::new("banner");

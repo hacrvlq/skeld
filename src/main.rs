@@ -79,5 +79,5 @@ struct GlobalConfig {
 	colorscheme: tui::Colorscheme,
 	disable_help_text: bool,
 	commands: Vec<CommandData>,
-	global_project_data: parsing::PrelimParseState,
+	global_project_data: parsing::RawProjectData,
 }

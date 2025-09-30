@@ -9,64 +9,26 @@ use super::{
 	string_interpolation,
 };
 use crate::{
+	command::Command,
 	parsing::lib::{CanonicalizationError, CanonicalizationLabel},
-	project::{EditorCommand, ProjectData},
+	project::ProjectData,
 	sandbox::{EnvVarWhitelist, FSTreeError, SandboxParameters, VirtualFSEntryType, VirtualFSTree},
 };
 
-#[derive(Clone, Debug)]
-pub struct ProjectDataFuture(pub PathBuf);
-impl ProjectDataFuture {
-	pub fn load(
-		self,
-		parse_state: PrelimParseState,
-		ctx: &mut ParseContext,
-	) -> ModResult<ProjectData> {
-		Self::parse_project_file_stage2(self.0, parse_state, ctx)
-	}
-	fn parse_project_file_stage2(
-		path: impl AsRef<Path>,
-		parse_state: PrelimParseState,
-		ctx: &mut ParseContext,
-	) -> ModResult<ProjectData> {
-		let mut outlivers = (None, None);
-		let parsed_contents =
-			parse_lib::parse_toml_file(path.as_ref(), ctx.file_database, &mut outlivers)?;
-
-		let mut name = StringOption::new("name");
-		let mut keybind = StringOption::new("keybind");
-		let mut project_data = ProjectDataOption::new("project", parse_state, ctx);
-
-		let docs_section = "PROJECTS";
-		parse_lib::parse_table!(
-			&parsed_contents => [name, keybind, project_data],
-			docs-section: docs_section,
-		)?;
-		let project_data = project_data
-			.get_value()
-			.into_project_data()
-			.map_err(|missing| {
-				diagnostics::missing_option(parsed_contents.loc(), &missing, docs_section)
-			})?;
-
-		Ok(project_data)
-	}
-}
-
 pub struct ProjectDataOption<'a, 'b> {
 	name: String,
-	value: PrelimParseState,
+	value: RawProjectData,
 	ctx: &'a mut ParseContext<'b>,
 }
 impl<'a, 'b> ProjectDataOption<'a, 'b> {
-	pub fn new(name: &str, initial_state: PrelimParseState, ctx: &'a mut ParseContext<'b>) -> Self {
+	pub fn new(name: &str, initial_data: RawProjectData, ctx: &'a mut ParseContext<'b>) -> Self {
 		Self {
 			name: name.to_string(),
-			value: initial_state,
+			value: initial_data,
 			ctx,
 		}
 	}
-	pub fn get_value(self) -> PrelimParseState {
+	pub fn get_value(self) -> RawProjectData {
 		self.value
 	}
 }
@@ -84,7 +46,7 @@ impl parse_lib::ConfigOption for ProjectDataOption<'_, '_> {
 // for each config option the configured value is saved or
 // nothing if this config option has not yet been specified
 #[derive(Clone)]
-pub struct PrelimParseState {
+pub struct RawProjectData {
 	project_dir: PathBufOption,
 	initial_file: StringOption,
 	editor: EditorCommandOption,
@@ -95,8 +57,8 @@ pub struct PrelimParseState {
 
 	parsed_files: Vec<PathBuf>,
 }
-impl PrelimParseState {
-	pub fn empty() -> Self {
+impl RawProjectData {
+	pub(super) fn empty() -> Self {
 		Self {
 			project_dir: PathBufOption::new("project-dir", canonicalize_path),
 			initial_file: StringOption::new_with_canonicalization("initial-file", |str| {
@@ -114,8 +76,7 @@ impl PrelimParseState {
 			parsed_files: Vec::new(),
 		}
 	}
-	// if a required config option is missing, the name of this option is returned as an error
-	fn into_project_data(self) -> Result<ProjectData, String> {
+	pub(super) fn into_project_data(self) -> Result<ProjectData, MissingOptionError> {
 		let project_dir = self.project_dir.get_value().ok_or("project-dir")?;
 		let initial_file = self.initial_file.get_value();
 		let editor = self.editor.value.ok_or("editor")?.0;
@@ -130,15 +91,13 @@ impl PrelimParseState {
 			let os_string_list = whitelist_envvars.into_iter().map(Into::into).collect();
 			EnvVarWhitelist::List(os_string_list)
 		};
+
 		Ok(ProjectData {
-			project_dir,
-			disable_sandbox,
-			initial_file,
-			editor,
-			sandbox_params: SandboxParameters {
+			command: editor.into_command(project_dir, initial_file.as_deref()),
+			sandbox_params: (!disable_sandbox).then_some(SandboxParameters {
 				envvar_whitelist: whitelist_envvars,
 				fs_tree: fs_tree.remove_user_data(),
-			},
+			}),
 		})
 	}
 	fn parse_path(&mut self, path: impl AsRef<Path>, ctx: &mut ParseContext) -> ModResult<()> {
@@ -237,6 +196,13 @@ impl PrelimParseState {
 		}
 	}
 }
+#[derive(Clone)]
+pub struct MissingOptionError(pub String);
+impl<T: Into<String>> From<T> for MissingOptionError {
+	fn from(value: T) -> Self {
+		Self(value.into())
+	}
+}
 
 #[derive(Clone)]
 struct VirtualFSOption {
@@ -305,6 +271,34 @@ impl parse_lib::ConfigOption for VirtualFSOption {
 		}
 
 		Ok(true)
+	}
+}
+
+#[derive(Clone)]
+struct EditorCommand {
+	cmd_with_file: Vec<String>,
+	cmd_without_file: Vec<String>,
+	detach: bool,
+}
+impl EditorCommand {
+	fn into_command(self, project_dir: PathBuf, initial_file: Option<&str>) -> Command {
+		let command: Vec<_> = if let Some(initial_file) = initial_file {
+			self
+				.cmd_with_file
+				.into_iter()
+				.map(|arg| arg.replace("$(FILE)", initial_file))
+				.collect()
+		} else {
+			self.cmd_without_file.into_iter().collect()
+		};
+
+		let mut command_iter = command.into_iter();
+		Command {
+			program: command_iter.next().expect("command should not be empty"),
+			args: command_iter.collect(),
+			working_dir: project_dir,
+			detach: self.detach,
+		}
 	}
 }
 #[derive(Clone)]

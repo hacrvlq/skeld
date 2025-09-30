@@ -8,23 +8,21 @@ use std::{
 	path::{Path, PathBuf},
 };
 
-use self::lib::{self as parse_lib, MockOption, StringOption};
-use crate::{GlobalConfig, dirs};
+use self::{
+	lib::{self as parse_lib, MockOption, StringOption},
+	project_data::{MissingOptionError, ProjectDataOption},
+};
+use crate::{
+	GlobalConfig, dirs,
+	project::{ProjectData, ProjectDataFile, ProjectFileData},
+};
 
 pub use self::{
 	lib::{Diagnostic, FileDatabase},
-	project_data::{PrelimParseState, ProjectDataFuture},
+	project_data::RawProjectData,
 };
 
 type ModResult<T> = crate::GenericResult<T>;
-
-#[derive(Clone)]
-pub struct ProjectButtonData {
-	pub name: String,
-	// if 'keybind' is 'None', an automatically determined keybinding will be used
-	pub keybind: Option<String>,
-	pub project_data: ProjectDataFuture,
-}
 
 // NOTE: FileDatabase is required for displaying errors,
 //       therefore it is stored globally
@@ -49,17 +47,46 @@ impl ParseContext<'_> {
 
 		config::parse_config_file(&global_config_file_path, self)
 	}
-	pub fn get_bookmarks(&mut self) -> ModResult<Vec<ProjectButtonData>> {
+	pub fn get_bookmarks(&mut self) -> ModResult<Vec<ProjectFileData>> {
 		self.get_projects_from_data_subdir("bookmarks")
 	}
-	pub fn get_projects(&mut self) -> ModResult<Vec<ProjectButtonData>> {
+	pub fn get_projects(&mut self) -> ModResult<Vec<ProjectFileData>> {
 		self.get_projects_from_data_subdir("projects")
 	}
+	pub fn parse_project_file(
+		&mut self,
+		path: impl AsRef<Path>,
+		initial_data: RawProjectData,
+	) -> ModResult<ProjectData> {
+		let mut outlivers = (None, None);
+		let parsed_contents =
+			parse_lib::parse_toml_file(path.as_ref(), self.file_database, &mut outlivers)?;
+
+		let mut name = MockOption::new("name");
+		let mut keybind = MockOption::new("keybind");
+		let mut project_data = ProjectDataOption::new("project", initial_data, self);
+
+		let docs_section = "PROJECTS";
+		parse_lib::parse_table!(
+			&parsed_contents => [name, keybind, project_data],
+			docs-section: docs_section,
+		)?;
+		let project_data =
+			project_data
+				.get_value()
+				.into_project_data()
+				.map_err(|MissingOptionError(missing)| {
+					lib::diagnostics::missing_option(parsed_contents.loc(), &missing, docs_section)
+				})?;
+
+		Ok(project_data)
+	}
+
 	// get projects from all '<SKELD-DATA>/subdir' directories
 	fn get_projects_from_data_subdir(
 		&mut self,
 		subdir: impl AsRef<Path>,
-	) -> ModResult<Vec<ProjectButtonData>> {
+	) -> ModResult<Vec<ProjectFileData>> {
 		let mut projects = Vec::new();
 
 		let skeld_data_dirs = dirs::get_skeld_data_dirs()
@@ -75,7 +102,7 @@ impl ParseContext<'_> {
 
 		Ok(projects)
 	}
-	fn parse_project_file_stage1(&mut self, path: impl AsRef<Path>) -> ModResult<ProjectButtonData> {
+	fn parse_project_file_stage1(&mut self, path: impl AsRef<Path>) -> ModResult<ProjectFileData> {
 		let path = path.as_ref();
 
 		let mut outlivers = (None, None);
@@ -114,10 +141,10 @@ impl ParseContext<'_> {
 			}
 		};
 
-		Ok(ProjectButtonData {
+		Ok(ProjectFileData {
 			name: project_name,
 			keybind: keybind.get_value(),
-			project_data: ProjectDataFuture(path.to_path_buf()),
+			project_data_file: ProjectDataFile(path.to_path_buf()),
 		})
 	}
 }

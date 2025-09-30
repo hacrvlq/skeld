@@ -8,7 +8,8 @@ use std::{
 use self::tui::{TuiData, UserSelection};
 use crate::{
 	GenericResult,
-	parsing::{ParseContext, PrelimParseState, ProjectDataFuture},
+	parsing::{ParseContext, RawProjectData},
+	project::ProjectDataFile,
 };
 
 pub fn run(
@@ -50,7 +51,7 @@ pub fn run(
 					first_unused_num.to_string()
 				}),
 				text: project.name,
-				action: Action::OpenProject(project.project_data),
+				action: Action::OpenProject(project.project_data_file),
 			})
 			.collect::<Vec<_>>(),
 	});
@@ -107,23 +108,19 @@ fn parse_str_as_num(str: impl AsRef<str>) -> Option<u64> {
 	}
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 enum Action {
 	Run(Command),
-	OpenProject(ProjectDataFuture),
+	OpenProject(ProjectDataFile),
 }
 impl Action {
-	fn execute(
-		self,
-		parse_state: PrelimParseState,
-		ctx: &mut ParseContext,
-	) -> GenericResult<ExitCode> {
+	fn execute(self, global_data: RawProjectData, ctx: &mut ParseContext) -> GenericResult<ExitCode> {
 		match self {
 			Action::Run(cmd) => cmd.run(),
-			Action::OpenProject(project) => {
-				let project_result = project.load(parse_state, ctx)?;
-				project_result.open().map_err(|err| err.to_string().into())
-			}
+			Action::OpenProject(project) => project
+				.load(global_data, ctx)?
+				.open()
+				.map_err(|err| err.into()),
 		}
 	}
 }
