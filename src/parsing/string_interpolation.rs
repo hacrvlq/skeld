@@ -5,11 +5,50 @@ use crate::{
 	parsing::lib::{CanonicalizationError, CanonicalizationLabel},
 };
 
-type ModResult<T> = Result<T, CanonicalizationError>;
+pub fn resolve_placeholders(str: &str) -> Result<String, CanonicalizationError> {
+	let var_resolver = StandardVariableResolver {
+		unallowed_file_var_note: "$(FILE) can only be used in 'editor.cmd-with-file'",
+	};
+	raw_resolve_placeholders(str, &var_resolver).map_err(|err| match err {
+		InternalError::Other(err) => err,
+		InternalError::UnresolvableFileVar => unreachable!(),
+	})
+}
+pub fn resolve_placeholders_with_file(
+	str: &str,
+	file_value: Option<&str>,
+) -> Result<Option<String>, CanonicalizationError> {
+	let var_resolver = VariableResolverWithFile {
+		file_var_value: file_value,
+	};
+	match raw_resolve_placeholders(str, &var_resolver) {
+		Ok(str) => Ok(Some(str)),
+		Err(InternalError::UnresolvableFileVar) => Ok(None),
+		Err(InternalError::Other(err)) => Err(err),
+	}
+}
 
-// resolves all placeholders except $(FILE),
-// allow_file_var determines whether the $(FILE) placeholder is allowed
-pub fn resolve_placeholders(str: &str, allow_file_var: bool) -> ModResult<String> {
+trait VariableResolver {
+	fn resolve(&self, expr: &str) -> Result<String, InternalError>;
+}
+#[derive(Clone, derive_more::From)]
+enum InternalError {
+	UnresolvableFileVar,
+	#[from]
+	Other(CanonicalizationError),
+}
+impl InternalError {
+	fn shift(self, amount: usize) -> Self {
+		match self {
+			Self::Other(err) => Self::Other(err.shift(amount)),
+			InternalError::UnresolvableFileVar => self,
+		}
+	}
+}
+fn raw_resolve_placeholders(
+	str: &str,
+	var_resolver: &dyn VariableResolver,
+) -> Result<String, InternalError> {
 	let resolve_placeholder = |placeholder| match placeholder {
 		Placeholder::Tilde { idx: pos } => resolve_homedir_expr(&str[pos..pos + 1])
 			.map_err(|err| err.shift(pos))
@@ -18,26 +57,27 @@ pub fn resolve_placeholders(str: &str, allow_file_var: bool) -> ModResult<String
 			ty: BracketType::Square,
 			span,
 			inner_span,
-		} => resolve_envvar_expr(&str[inner_span.clone()], allow_file_var)
+		} => resolve_envvar_expr(&str[inner_span.clone()], var_resolver)
 			.map_err(|err| err.shift(inner_span.start))
 			.map(|str| (span, str)),
 		Placeholder::BracketPair {
 			ty: BracketType::Round,
 			span,
 			inner_span,
-		} => resolve_variable_expr(&str[inner_span.clone()], allow_file_var)
+		} => var_resolver
+			.resolve(&str[inner_span.clone()])
 			.map_err(|err| err.shift(inner_span.start))
 			.map(|str| (span, str)),
 	};
 	let replacements = find_toplevel_placeholders(str)?
 		.into_iter()
 		.map(resolve_placeholder)
-		.collect::<ModResult<Vec<_>>>()?;
+		.collect::<Result<Vec<_>, _>>()?;
 
 	let substituted_str = replace_multiple_ranges(str, replacements);
 	Ok(substituted_str)
 }
-fn resolve_homedir_expr(expr: &str) -> ModResult<String> {
+fn resolve_homedir_expr(expr: &str) -> Result<String, InternalError> {
 	let home_dir_path =
 		dirs::get_home_dir().map_err(|err| convert_dirs_err(err, 0..expr.len(), None))?;
 	let home_dir_str = home_dir_path
@@ -56,45 +96,95 @@ fn resolve_homedir_expr(expr: &str) -> ModResult<String> {
 		.to_string();
 	Ok(home_dir_str)
 }
-fn resolve_envvar_expr(expr: &str, allow_file_var: bool) -> ModResult<String> {
+fn resolve_envvar_expr(
+	expr: &str,
+	var_resolver: &dyn VariableResolver,
+) -> Result<String, InternalError> {
 	let first_colon = expr.find(':');
 	let env_var_name = first_colon.map(|pos| &expr[..pos]).unwrap_or(expr);
 	let env_var_alt = first_colon.map(|pos| &expr[pos + 1..]);
 
 	if let Some(placeholder) = find_next_placeholder_poi(env_var_name) {
-		return Err(CanonicalizationError {
-			labels: vec![CanonicalizationLabel::primary_with_span(
-				placeholder.0,
-				"placeholders are not allowed here",
-			)],
-			..CanonicalizationError::main_message("invalid environment variable expression")
-		});
+		return Err(
+			CanonicalizationError {
+				labels: vec![CanonicalizationLabel::primary_with_span(
+					placeholder.0,
+					"placeholders are not allowed here",
+				)],
+				..CanonicalizationError::main_message("invalid environment variable expression")
+			}
+			.into(),
+		);
 	}
 
 	match env::var(env_var_name) {
 		Ok(value) => Ok(value),
 		Err(env::VarError::NotPresent) if env_var_alt.is_some() => {
 			let env_var_alt = env_var_alt.unwrap();
-			resolve_placeholders(env_var_alt, allow_file_var)
+			raw_resolve_placeholders(env_var_alt, var_resolver)
 				.map_err(|err| err.shift(env_var_name.len() + 1))
 		}
-		Err(env::VarError::NotPresent) => Err(CanonicalizationError {
-			labels: vec![CanonicalizationLabel::primary_with_span(
-				0..env_var_name.len(),
-				"",
-			)],
-			..CanonicalizationError::main_message("environment variable not found")
-		}),
-		Err(env::VarError::NotUnicode(raw)) => Err(CanonicalizationError {
-			labels: vec![CanonicalizationLabel::primary_with_span(
-				0..env_var_name.len(),
-				format!("raw value: `{}`", raw.to_string_lossy()),
-			)],
-			..CanonicalizationError::main_message("environment variable was not valid UTF-8")
-		}),
+		Err(env::VarError::NotPresent) => Err(
+			CanonicalizationError {
+				labels: vec![CanonicalizationLabel::primary_with_span(
+					0..env_var_name.len(),
+					"",
+				)],
+				..CanonicalizationError::main_message("environment variable not found")
+			}
+			.into(),
+		),
+		Err(env::VarError::NotUnicode(raw)) => Err(
+			CanonicalizationError {
+				labels: vec![CanonicalizationLabel::primary_with_span(
+					0..env_var_name.len(),
+					format!("raw value: `{}`", raw.to_string_lossy()),
+				)],
+				..CanonicalizationError::main_message("environment variable was not valid UTF-8")
+			}
+			.into(),
+		),
 	}
 }
-fn resolve_variable_expr(expr: &str, allow_file_var: bool) -> ModResult<String> {
+
+#[derive(Clone)]
+struct StandardVariableResolver<'a> {
+	unallowed_file_var_note: &'a str,
+}
+impl VariableResolver for StandardVariableResolver<'_> {
+	fn resolve(&self, expr: &str) -> Result<String, InternalError> {
+		if let Some(resolved) = resolve_standard_variables(expr)? {
+			return Ok(resolved);
+		}
+
+		let mut err = make_unknown_variable_error(expr, false);
+		if expr == "FILE" {
+			err.notes.push(self.unallowed_file_var_note.to_owned());
+		}
+		Err(err.into())
+	}
+}
+#[derive(Clone)]
+struct VariableResolverWithFile<'a> {
+	file_var_value: Option<&'a str>,
+}
+impl VariableResolver for VariableResolverWithFile<'_> {
+	fn resolve(&self, expr: &str) -> Result<String, InternalError> {
+		if let Some(resolved) = resolve_standard_variables(expr)? {
+			return Ok(resolved);
+		}
+
+		if expr == "FILE" {
+			return self
+				.file_var_value
+				.map(ToOwned::to_owned)
+				.ok_or(InternalError::UnresolvableFileVar);
+		}
+
+		Err(make_unknown_variable_error(expr, true).into())
+	}
+}
+fn resolve_standard_variables(expr: &str) -> Result<Option<String>, CanonicalizationError> {
 	if let Some(placeholder) = find_next_placeholder_poi(expr) {
 		return Err(CanonicalizationError {
 			labels: vec![CanonicalizationLabel::primary_with_span(
@@ -133,42 +223,10 @@ fn resolve_variable_expr(expr: &str, allow_file_var: bool) -> ModResult<String> 
 				)],
 				..CanonicalizationError::main_message(format!("invalid {dirname} directory path"))
 			})?;
-		return Ok(resolved_expr_str.to_string());
+		return Ok(Some(resolved_expr_str.to_string()));
 	}
 
-	if allow_file_var && expr == "FILE" {
-		return Ok("$(FILE)".to_string());
-	}
-
-	// unknown variable
-	{
-		let mut valid_variables = vec!["CONFIG", "CACHE", "DATA", "STATE"];
-		if allow_file_var {
-			valid_variables.push("FILE");
-		}
-		let valid_variables_str = valid_variables
-			.into_iter()
-			.map(|str| format!("`$({str})`"))
-			.collect::<Vec<_>>()
-			.join(", ");
-
-		let mut notes = vec![format!(
-			"supported variables are {valid_variables_str}\n(run `{man_cmd}` to see all supported variables)",
-			man_cmd = crate::error::get_manpage_cmd("String Interpolation"),
-		)];
-		if !allow_file_var && expr == "FILE" {
-			notes.push("$(FILE) can only be used in 'editor.cmd-with-file'".to_string());
-		}
-
-		Err(CanonicalizationError {
-			labels: vec![CanonicalizationLabel::primary_with_span(
-				0..expr.len(),
-				"unknown variable",
-			)],
-			notes,
-			..CanonicalizationError::main_message("unknown variable expression")
-		})
-	}
+	Ok(None)
 }
 fn convert_dirs_err(
 	err: dirs::Error,
@@ -208,6 +266,29 @@ fn convert_dirs_err(
 		}
 	}
 }
+fn make_unknown_variable_error(expr: &str, file_var_allowed: bool) -> CanonicalizationError {
+	let mut valid_variables = vec!["CONFIG", "CACHE", "DATA", "STATE"];
+	if file_var_allowed {
+		valid_variables.push("FILE");
+	}
+	let valid_variables_str = valid_variables
+		.into_iter()
+		.map(|str| format!("`$({str})`"))
+		.collect::<Vec<_>>()
+		.join(", ");
+
+	CanonicalizationError {
+		labels: vec![CanonicalizationLabel::primary_with_span(
+			0..expr.len(),
+			"unknown variable",
+		)],
+		notes: vec![format!(
+			"supported variables are {valid_variables_str}\n(run `{man_cmd}` to see all supported variables)",
+			man_cmd = crate::error::get_manpage_cmd("String Interpolation"),
+		)],
+		..CanonicalizationError::main_message("unknown variable expression")
+	}
+}
 
 #[derive(Clone)]
 enum Placeholder {
@@ -225,7 +306,7 @@ enum BracketType {
 	Square,
 	Round,
 }
-fn find_toplevel_placeholders(str: &str) -> ModResult<Vec<Placeholder>> {
+fn find_toplevel_placeholders(str: &str) -> Result<Vec<Placeholder>, CanonicalizationError> {
 	let mut placeholders = Vec::new();
 
 	let mut bracket_stack = Vec::new();

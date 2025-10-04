@@ -61,9 +61,10 @@ impl RawProjectData {
 	pub(super) fn empty() -> Self {
 		Self {
 			project_dir: PathBufOption::new("project-dir", canonicalize_path),
-			initial_file: StringOption::new_with_canonicalization("initial-file", |str| {
-				string_interpolation::resolve_placeholders(str, false)
-			}),
+			initial_file: StringOption::new_with_canonicalization(
+				"initial-file",
+				string_interpolation::resolve_placeholders,
+			),
 			editor: EditorCommandOption::new(),
 			virtual_fs: VirtualFSOption::new(),
 			whitelist_envvars: ArrayOption::new("whitelist-envvar", true, |value| {
@@ -76,10 +77,17 @@ impl RawProjectData {
 			parsed_files: Vec::new(),
 		}
 	}
-	pub(super) fn into_project_data(self) -> Result<ProjectData, MissingOptionError> {
-		let project_dir = self.project_dir.get_value().ok_or("project-dir")?;
+	pub(super) fn into_project_data(self) -> Result<ProjectData, IntoProjectDataError> {
+		let project_dir = self
+			.project_dir
+			.get_value()
+			.ok_or_else(|| IntoProjectDataError::MissingConfigOption("project-dir".to_string()))?;
 		let initial_file = self.initial_file.get_value();
-		let editor = self.editor.value.ok_or("editor")?.0;
+		let editor = self
+			.editor
+			.value
+			.ok_or_else(|| IntoProjectDataError::MissingConfigOption("editor".to_string()))?
+			.0;
 		let fs_tree = self.virtual_fs.tree;
 		let whitelist_all_envvars = self.whitelist_all_envvars.get_value().unwrap_or_default();
 		let whitelist_envvars = self.whitelist_envvars.get_value().unwrap_or_default();
@@ -93,7 +101,7 @@ impl RawProjectData {
 		};
 
 		Ok(ProjectData {
-			command: editor.into_command(project_dir, initial_file.as_deref()),
+			command: editor.into_command(project_dir, initial_file.as_deref())?,
 			sandbox_params: (!disable_sandbox).then_some(SandboxParameters {
 				envvar_whitelist: whitelist_envvars,
 				fs_tree: fs_tree.remove_user_data(),
@@ -141,7 +149,7 @@ impl RawProjectData {
 		Ok(())
 	}
 	fn canonicalize_include_path(path: &str) -> Result<PathBuf, CanonicalizationError> {
-		let path = PathBuf::from(string_interpolation::resolve_placeholders(path, false)?);
+		let path = PathBuf::from(string_interpolation::resolve_placeholders(path)?);
 
 		if path.is_absolute() {
 			return Ok(path);
@@ -196,12 +204,11 @@ impl RawProjectData {
 		}
 	}
 }
-#[derive(Clone)]
-pub struct MissingOptionError(pub String);
-impl<T: Into<String>> From<T> for MissingOptionError {
-	fn from(value: T) -> Self {
-		Self(value.into())
-	}
+#[derive(derive_more::From)]
+pub enum IntoProjectDataError {
+	MissingConfigOption(String),
+	#[from]
+	Other(crate::GenericError),
 }
 
 #[derive(Clone)]
@@ -276,29 +283,37 @@ impl parse_lib::ConfigOption for VirtualFSOption {
 
 #[derive(Clone)]
 struct EditorCommand {
-	cmd_with_file: Vec<String>,
+	cmd_with_file: Vec<(String, parse_lib::Location)>,
 	cmd_without_file: Vec<String>,
 	detach: bool,
 }
 impl EditorCommand {
-	fn into_command(self, project_dir: PathBuf, initial_file: Option<&str>) -> Command {
+	fn into_command(
+		self,
+		project_dir: PathBuf,
+		initial_file: Option<&str>,
+	) -> Result<Command, crate::GenericError> {
 		let command: Vec<_> = if let Some(initial_file) = initial_file {
 			self
 				.cmd_with_file
 				.into_iter()
-				.map(|arg| arg.replace("$(FILE)", initial_file))
-				.collect()
+				.map(|arg| {
+					string_interpolation::resolve_placeholders_with_file(&arg.0, Some(initial_file))
+						.map(|str| str.unwrap())
+						.map_err(|err| diagnostics::failed_canonicalization(&arg.1, &err))
+				})
+				.collect::<Result<_, _>>()?
 		} else {
 			self.cmd_without_file.into_iter().collect()
 		};
 
 		let mut command_iter = command.into_iter();
-		Command {
+		Ok(Command {
 			program: command_iter.next().expect("command should not be empty"),
 			args: command_iter.collect(),
 			working_dir: project_dir,
 			detach: self.detach,
-		}
+		})
 	}
 }
 #[derive(Clone)]
@@ -322,12 +337,11 @@ impl parse_lib::ConfigOption for EditorCommandOption {
 
 		let mut cmd_with_file = ArrayOption::new("cmd-with-file", false, |raw_value| {
 			let value = raw_value.as_str()?;
-			string_interpolation::resolve_placeholders(value, true)
-				.map_err(|err| diagnostics::failed_canonicalization(raw_value.loc(), &err).into())
+			Ok((value.to_owned(), raw_value.loc().clone()))
 		});
 		let mut cmd_without_file = ArrayOption::new("cmd-without-file", false, |raw_value| {
 			let value = raw_value.as_str()?;
-			string_interpolation::resolve_placeholders(value, false)
+			string_interpolation::resolve_placeholders(value)
 				.map_err(|err| diagnostics::failed_canonicalization(raw_value.loc(), &err).into())
 		});
 		let mut detach = BoolOption::new("detach");
@@ -373,7 +387,7 @@ impl parse_lib::ConfigOption for EditorCommandOption {
 }
 
 fn canonicalize_path(path: &str) -> Result<PathBuf, CanonicalizationError> {
-	let substituted_path_str = string_interpolation::resolve_placeholders(path, false)?;
+	let substituted_path_str = string_interpolation::resolve_placeholders(path)?;
 	let substituted_path = PathBuf::from(&substituted_path_str);
 
 	if substituted_path.is_relative() {

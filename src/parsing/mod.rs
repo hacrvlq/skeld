@@ -10,7 +10,7 @@ use std::{
 
 use self::{
 	lib::{self as parse_lib, MockOption, StringOption},
-	project_data::{MissingOptionError, ProjectDataOption},
+	project_data::{IntoProjectDataError, ProjectDataOption},
 };
 use crate::{
 	GlobalConfig, dirs,
@@ -71,13 +71,15 @@ impl ParseContext<'_> {
 			&parsed_contents => [name, keybind, project_data],
 			docs-section: docs_section,
 		)?;
-		let project_data =
-			project_data
-				.get_value()
-				.into_project_data()
-				.map_err(|MissingOptionError(missing)| {
-					lib::diagnostics::missing_option(parsed_contents.loc(), &missing, docs_section)
-				})?;
+		let project_data = project_data
+			.get_value()
+			.into_project_data()
+			.map_err(|err| match err {
+				IntoProjectDataError::MissingConfigOption(missing) => {
+					lib::diagnostics::missing_option(parsed_contents.loc(), &missing, docs_section).into()
+				}
+				IntoProjectDataError::Other(err) => err,
+			})?;
 
 		Ok(project_data)
 	}
