@@ -256,7 +256,7 @@ impl PathBufOption {
 		Self(BaseOption::new(name, move |value| {
 			let raw_value = value.as_str()?;
 			(canonicalization)(raw_value)
-				.map_err(|err| diagnostics::failed_canonicalization(value, &err).into())
+				.map_err(|err| diagnostics::failed_canonicalization(value.loc(), &err).into())
 		}))
 	}
 	pub fn get_value(self) -> Option<PathBuf> {
@@ -281,7 +281,7 @@ impl StringOption {
 		Self(BaseOption::new(name, move |value| {
 			let raw_value = value.as_str()?;
 			(canonicalization)(raw_value)
-				.map_err(|err| diagnostics::failed_canonicalization(value, &err).into())
+				.map_err(|err| diagnostics::failed_canonicalization(value.loc(), &err).into())
 		}))
 	}
 	pub fn get_value(self) -> Option<String> {
@@ -442,9 +442,9 @@ pub(crate) use parse_table;
 pub mod diagnostics {
 	use super::*;
 
-	pub fn failed_canonicalization(value: &TomlValue, err: &CanonicalizationError) -> Diagnostic {
+	pub fn failed_canonicalization(value_loc: &Location, err: &CanonicalizationError) -> Diagnostic {
 		let resolve_relative_span = |relative_span: &Range<usize>| {
-			let mut loc = value.loc().clone();
+			let mut loc = value_loc.clone();
 
 			let base_span = loc.span;
 			loc.span.start = base_span.start + relative_span.start;
@@ -458,7 +458,7 @@ pub mod diagnostics {
 				.span
 				.as_ref()
 				.map(resolve_relative_span)
-				.unwrap_or(value.loc().clone());
+				.unwrap_or(value_loc.clone());
 			DiagLabel::new(label.ty, loc.file.0, loc.span).with_message(&label.message)
 		};
 

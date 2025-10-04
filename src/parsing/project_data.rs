@@ -118,7 +118,7 @@ impl RawProjectData {
 		let mut include_option = ArrayOption::new("include", false, |raw_value| {
 			let value = raw_value.as_str()?;
 			Self::canonicalize_include_path(value)
-				.map_err(|err| diagnostics::failed_canonicalization(raw_value, &err).into())
+				.map_err(|err| diagnostics::failed_canonicalization(raw_value.loc(), &err).into())
 		});
 
 		parse_lib::parse_table!(
@@ -235,7 +235,7 @@ impl parse_lib::ConfigOption for VirtualFSOption {
 		let mut patharray_option = ArrayOption::new(key.name(), false, |raw_value| {
 			let value = raw_value.as_str()?;
 			let parsed_value = canonicalize_path(value)
-				.map_err(|err| diagnostics::failed_canonicalization(raw_value, &err))?;
+				.map_err(|err| diagnostics::failed_canonicalization(raw_value.loc(), &err))?;
 			Ok((parsed_value, raw_value.loc().clone()))
 		});
 		patharray_option.try_eat(key, value)?;
@@ -323,12 +323,12 @@ impl parse_lib::ConfigOption for EditorCommandOption {
 		let mut cmd_with_file = ArrayOption::new("cmd-with-file", false, |raw_value| {
 			let value = raw_value.as_str()?;
 			string_interpolation::resolve_placeholders(value, true)
-				.map_err(|err| diagnostics::failed_canonicalization(raw_value, &err).into())
+				.map_err(|err| diagnostics::failed_canonicalization(raw_value.loc(), &err).into())
 		});
 		let mut cmd_without_file = ArrayOption::new("cmd-without-file", false, |raw_value| {
 			let value = raw_value.as_str()?;
 			string_interpolation::resolve_placeholders(value, false)
-				.map_err(|err| diagnostics::failed_canonicalization(raw_value, &err).into())
+				.map_err(|err| diagnostics::failed_canonicalization(raw_value.loc(), &err).into())
 		});
 		let mut detach = BoolOption::new("detach");
 

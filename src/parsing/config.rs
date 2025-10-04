@@ -83,7 +83,7 @@ fn parse_command_data(value: &TomlValue) -> ModResult<CommandData> {
 	let mut command = ArrayOption::new("command", false, |raw_value| {
 		let value = raw_value.as_str()?;
 		string_interpolation::resolve_placeholders(value, false)
-			.map_err(|err| diagnostics::failed_canonicalization(raw_value, &err).into())
+			.map_err(|err| diagnostics::failed_canonicalization(raw_value.loc(), &err).into())
 	});
 	let mut detach = BoolOption::new("detach");
 
