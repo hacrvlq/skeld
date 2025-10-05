@@ -283,8 +283,8 @@ impl parse_lib::ConfigOption for VirtualFSOption {
 
 #[derive(Clone)]
 struct EditorCommand {
-	cmd_with_file: Vec<(String, parse_lib::Location)>,
-	cmd_without_file: Vec<String>,
+	program: String,
+	args: Vec<(String, parse_lib::Location)>,
 	detach: bool,
 }
 impl EditorCommand {
@@ -293,24 +293,19 @@ impl EditorCommand {
 		project_dir: PathBuf,
 		initial_file: Option<&str>,
 	) -> Result<Command, crate::GenericError> {
-		let command: Vec<_> = if let Some(initial_file) = initial_file {
-			self
-				.cmd_with_file
-				.into_iter()
-				.map(|arg| {
-					string_interpolation::resolve_placeholders_with_file(&arg.0, Some(initial_file))
-						.map(|str| str.unwrap())
-						.map_err(|err| diagnostics::failed_canonicalization(&arg.1, &err))
-				})
-				.collect::<Result<_, _>>()?
-		} else {
-			self.cmd_without_file.into_iter().collect()
-		};
+		let args = self
+			.args
+			.into_iter()
+			.filter_map(|arg| {
+				string_interpolation::resolve_placeholders_with_file(&arg.0, initial_file)
+					.map_err(|err| diagnostics::failed_canonicalization(&arg.1, &err))
+					.transpose()
+			})
+			.collect::<Result<_, _>>()?;
 
-		let mut command_iter = command.into_iter();
 		Ok(Command {
-			program: command_iter.next().expect("command should not be empty"),
-			args: command_iter.collect(),
+			program: self.program,
+			args,
 			working_dir: project_dir,
 			detach: self.detach,
 		})
@@ -335,50 +330,41 @@ impl parse_lib::ConfigOption for EditorCommandOption {
 		}
 		let table = value.as_table()?;
 
-		let mut cmd_with_file = ArrayOption::new("cmd-with-file", false, |raw_value| {
+		let mut cmd = ArrayOption::new("cmd", false, |raw_value| {
 			let value = raw_value.as_str()?;
 			Ok((value.to_owned(), raw_value.loc().clone()))
-		});
-		let mut cmd_without_file = ArrayOption::new("cmd-without-file", false, |raw_value| {
-			let value = raw_value.as_str()?;
-			string_interpolation::resolve_placeholders(value)
-				.map_err(|err| diagnostics::failed_canonicalization(raw_value.loc(), &err).into())
 		});
 		let mut detach = BoolOption::new("detach");
 
 		let docs_section = "PROJECT DATA FORMAT";
 		parse_lib::parse_table!(
-			&table => [cmd_with_file, cmd_without_file, detach],
+			&table => [cmd, detach],
 			docs-section: docs_section,
 		)?;
-		let cmd_with_file = cmd_with_file
+		let cmd = cmd
 			.get_value_with_loc()
-			.ok_or_else(|| diagnostics::missing_option(key.loc(), "cmd-with-file", docs_section))?;
-		let cmd_without_file = cmd_without_file
-			.get_value_with_loc()
-			.ok_or_else(|| diagnostics::missing_option(key.loc(), "cmd-without-file", docs_section))?;
+			.ok_or_else(|| diagnostics::missing_option(key.loc(), "cmd", docs_section))?;
 		let detach = detach
 			.get_value()
 			.ok_or_else(|| diagnostics::missing_option(key.loc(), "detach", docs_section))?;
 
-		let diagnostics_empty_command = |loc: parse_lib::Location| {
-			let label = loc
+		let mut cmd_iter = cmd.0.into_iter();
+		let program = cmd_iter.next().ok_or_else(|| {
+			let label = cmd
+				.1
 				.get_primary_label()
 				.with_message("command must not be empty");
 			parse_lib::Diagnostic::new(parse_lib::Severity::Error)
 				.with_message("empty editor command")
 				.with_labels(vec![label])
-		};
-		if cmd_with_file.0.is_empty() {
-			return Err(diagnostics_empty_command(cmd_with_file.1).into());
-		}
-		if cmd_without_file.0.is_empty() {
-			return Err(diagnostics_empty_command(cmd_without_file.1).into());
-		}
+		})?;
+		let program = string_interpolation::resolve_placeholders_in_editor_program(&program.0)
+			.map_err(|err| diagnostics::failed_canonicalization(&program.1, &err))?;
+		let args = cmd_iter.collect();
 
 		let editor_cmd = EditorCommand {
-			cmd_with_file: cmd_with_file.0,
-			cmd_without_file: cmd_without_file.0,
+			program,
+			args,
 			detach,
 		};
 		self.value = Some((editor_cmd, key.loc().clone()));

@@ -7,7 +7,16 @@ use crate::{
 
 pub fn resolve_placeholders(str: &str) -> Result<String, CanonicalizationError> {
 	let var_resolver = StandardVariableResolver {
-		unallowed_file_var_note: "$(FILE) can only be used in 'editor.cmd-with-file'",
+		unallowed_file_var_note: "$(FILE) can only be used in 'editor.cmd'",
+	};
+	raw_resolve_placeholders(str, &var_resolver).map_err(|err| match err {
+		InternalError::Other(err) => err,
+		InternalError::UnresolvableFileVar => unreachable!(),
+	})
+}
+pub fn resolve_placeholders_in_editor_program(str: &str) -> Result<String, CanonicalizationError> {
+	let var_resolver = StandardVariableResolver {
+		unallowed_file_var_note: "$(FILE) cannot be used in the program path",
 	};
 	raw_resolve_placeholders(str, &var_resolver).map_err(|err| match err {
 		InternalError::Other(err) => err,
