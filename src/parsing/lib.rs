@@ -499,27 +499,16 @@ pub mod diagnostics {
 		assert!(!expected.is_empty());
 		let expected_types_str = expected
 			.iter()
-			.map(|ty| format!("`{}`", toml_type_to_string(ty)))
+			.map(|ty| format!("`{}`", ty.type_str()))
 			.collect::<Vec<_>>()
 			.join(" or ");
 
 		let label = got.loc().get_primary_label().with_message(format!(
 			"expected {expected_types_str}, found `{}`",
-			toml_type_to_string(got.value)
+			got.value.type_str()
 		));
 		Diagnostic::new(Severity::Error)
 			.with_message("unexpected type")
 			.with_labels(vec![label])
-	}
-	fn toml_type_to_string(val: &TomlInnerValue) -> String {
-		match val {
-			TomlInnerValue::String(_) => "String",
-			TomlInnerValue::Integer(_) => "Integer",
-			TomlInnerValue::Float(_) => "Float",
-			TomlInnerValue::Boolean(_) => "Boolean",
-			TomlInnerValue::Array(_) => "Array",
-			TomlInnerValue::Table(_) => "Table",
-		}
-		.to_string()
 	}
 }
