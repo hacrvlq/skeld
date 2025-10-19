@@ -162,12 +162,14 @@ struct StandardVariableResolver<'a> {
 }
 impl VariableResolver for StandardVariableResolver<'_> {
 	fn resolve(&self, expr: &str) -> Result<String, InternalError> {
-		if let Some(resolved) = resolve_standard_variables(expr)? {
+		let (var_name, alt_value) = parse_variable(expr)?;
+
+		if let Some(resolved) = resolve_standard_variables(var_name, alt_value)? {
 			return Ok(resolved);
 		}
 
-		let mut err = make_unknown_variable_error(expr, false);
-		if expr == "FILE" {
+		let mut err = make_unknown_variable_error(var_name, false);
+		if var_name == "FILE" {
 			err.notes.push(self.unallowed_file_var_note.to_owned());
 		}
 		Err(err.into())
@@ -179,22 +181,32 @@ struct VariableResolverWithFile<'a> {
 }
 impl VariableResolver for VariableResolverWithFile<'_> {
 	fn resolve(&self, expr: &str) -> Result<String, InternalError> {
-		if let Some(resolved) = resolve_standard_variables(expr)? {
+		let (var_name, alt_value) = parse_variable(expr)?;
+
+		if let Some(resolved) = resolve_standard_variables(var_name, alt_value)? {
 			return Ok(resolved);
 		}
 
-		if expr == "FILE" {
-			return self
-				.file_var_value
-				.map(ToOwned::to_owned)
-				.ok_or(InternalError::UnresolvableFileVar);
+		if var_name == "FILE" {
+			return if let Some(file_var_value) = self.file_var_value {
+				Ok(file_var_value.to_owned())
+			} else if let Some(alt_value) = alt_value {
+				raw_resolve_placeholders(alt_value, self)
+			} else {
+				Err(InternalError::UnresolvableFileVar)
+			};
 		}
 
-		Err(make_unknown_variable_error(expr, true).into())
+		Err(make_unknown_variable_error(var_name, true).into())
 	}
 }
-fn resolve_standard_variables(expr: &str) -> Result<Option<String>, CanonicalizationError> {
-	if let Some(placeholder) = find_next_placeholder_poi(expr) {
+
+fn parse_variable(expr: &str) -> Result<(&str, Option<&str>), CanonicalizationError> {
+	let first_colon = expr.find(':');
+	let var_name = first_colon.map(|pos| &expr[..pos]).unwrap_or(expr);
+	let alt_value = first_colon.map(|pos| &expr[pos + 1..]);
+
+	if let Some(placeholder) = find_next_placeholder_poi(var_name) {
 		return Err(CanonicalizationError {
 			labels: vec![CanonicalizationLabel::primary_with_span(
 				placeholder.0,
@@ -204,6 +216,12 @@ fn resolve_standard_variables(expr: &str) -> Result<Option<String>, Canonicaliza
 		});
 	}
 
+	Ok((var_name, alt_value))
+}
+fn resolve_standard_variables(
+	var_name: &str,
+	alt_value: Option<&str>,
+) -> Result<Option<String>, CanonicalizationError> {
 	type XdgDirFn = fn() -> Result<PathBuf, dirs::Error>;
 	let dir_exprs = [
 		("CONFIG", dirs::get_xdg_config_dir as XdgDirFn),
@@ -212,18 +230,29 @@ fn resolve_standard_variables(expr: &str) -> Result<Option<String>, Canonicaliza
 		("STATE", dirs::get_xdg_state_dir),
 	];
 	for (varname, resolve_fn) in dir_exprs {
-		if expr != varname {
+		if var_name != varname {
 			continue;
+		}
+
+		if let Some(alt_value) = alt_value {
+			return Err(CanonicalizationError {
+				labels: vec![CanonicalizationLabel::primary_with_span(
+					// assumes the format to be $(<var name>:<alt value>)
+					var_name.len()..var_name.len() + 1 + alt_value.len(),
+					format!("alternative values are not supported for $({var_name})"),
+				)],
+				..CanonicalizationError::main_message("invalid variable expression")
+			});
 		}
 
 		let dirname = varname.to_lowercase();
 		let resolved_expr_path =
-			resolve_fn().map_err(|err| convert_dirs_err(err, 0..expr.len(), Some(&dirname)))?;
+			resolve_fn().map_err(|err| convert_dirs_err(err, 0..var_name.len(), Some(&dirname)))?;
 		let resolved_expr_str = resolved_expr_path
 			.to_str()
 			.ok_or_else(|| CanonicalizationError {
 				labels: vec![CanonicalizationLabel::primary_with_span(
-					0..expr.len(),
+					0..var_name.len(),
 					"required from here",
 				)],
 				notes: vec![format!(
