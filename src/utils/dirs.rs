@@ -6,7 +6,7 @@ use std::{
 	path::{Path, PathBuf},
 };
 
-#[allow(clippy::enum_variant_names)]
+#[expect(clippy::enum_variant_names)]
 #[derive(Debug, derive_more::Display)]
 pub enum Error {
 	#[display("home directory could not be determined")]
@@ -71,7 +71,7 @@ pub fn get_xdg_data_dirs() -> ModResult<Vec<PathBuf>> {
 	if let Some(relative_path) = paths.iter().find(|path| path.is_relative()) {
 		Err(Error::RelativeXdgBaseDir {
 			varname: "XDG_DATA_DIRS".to_string(),
-			dir: relative_path.to_path_buf(),
+			dir: relative_path.clone(),
 		})
 	} else {
 		Ok(paths)

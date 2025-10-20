@@ -26,7 +26,7 @@ impl Command {
 	pub fn run(&self) -> Result<ExitCode, Box<dyn Error>> {
 		if self.detach {
 			detach_from_tty()?;
-		};
+		}
 
 		let mut child = OsCommand::new(&self.program)
 			.args(&self.args)

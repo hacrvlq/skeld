@@ -153,7 +153,7 @@ impl RawProjectData {
 
 		if path.is_absolute() {
 			return Ok(path);
-		};
+		}
 
 		let mut matching_files = Vec::new();
 		let skeld_data_dirs =

@@ -72,6 +72,7 @@ pub fn run(
 			.into_iter()
 			.partition(|button| parse_str_as_num(&button.keybind).is_some());
 		buttons_numerical.sort_by_key(|button| parse_str_as_num(&button.keybind).unwrap());
+		#[expect(clippy::tuple_array_conversions)]
 		let buttons = [buttons_rest, buttons_numerical].concat();
 
 		tui::Section { buttons, ..section }
@@ -117,10 +118,7 @@ impl Action {
 	fn execute(self, global_data: RawProjectData, ctx: &mut ParseContext) -> GenericResult<ExitCode> {
 		match self {
 			Action::Run(cmd) => cmd.run(),
-			Action::OpenProject(project) => project
-				.load(global_data, ctx)?
-				.open()
-				.map_err(|err| err.into()),
+			Action::OpenProject(project) => project.load(global_data, ctx)?.open().map_err(Into::into),
 		}
 	}
 }

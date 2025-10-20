@@ -71,7 +71,9 @@ pub fn parse_config_file(
 		commands: commands.get_value().unwrap_or_default(),
 		global_project_data: global_project_data.get_value(),
 		colorscheme: colorscheme.get_value().unwrap_or(DEFAULT_COLORSCHEME),
-		banner: banner.get_value().unwrap_or(DEFAULT_BANNER.to_string()),
+		banner: banner
+			.get_value()
+			.unwrap_or_else(|| DEFAULT_BANNER.to_string()),
 		disable_help_text: disable_help_text.get_value().unwrap_or_default(),
 	})
 }

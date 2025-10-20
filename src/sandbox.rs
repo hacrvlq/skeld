@@ -77,12 +77,8 @@ impl SandboxParameters {
 			let bpf_program_fd = pipe_reader.into_raw_fd();
 
 			for instr in bpf_program {
-				let instr_bytes = unsafe {
-					std::slice::from_raw_parts(
-						(&instr as *const seccompiler::sock_filter) as *const u8,
-						std::mem::size_of_val(&instr),
-					)
-				};
+				let instr_bytes =
+					unsafe { std::slice::from_raw_parts((&raw const instr).cast(), size_of_val(&instr)) };
 				pipe_writer.write_all(instr_bytes).unwrap();
 			}
 			drop(pipe_writer);
@@ -222,7 +218,7 @@ impl<U: Clone> VirtualFSTree<U> {
 	}
 	fn add_path_rec(
 		&mut self,
-		parts: &[&std::ffi::OsStr],
+		parts: &[&OsStr],
 		entry: (VirtualFSEntryType, U),
 	) -> Result<(), FSTreeError<U>> {
 		if let Some(next_part) = parts.first() {
@@ -340,7 +336,7 @@ impl<U: Clone> VirtualFSTree<U> {
 	}
 }
 impl VirtualFSEntryType {
-	fn priority(&self) -> Option<i64> {
+	fn priority(self) -> Option<i64> {
 		match self {
 			VirtualFSEntryType::AllowDev => Some(2),
 			VirtualFSEntryType::ReadWrite => Some(1),
@@ -349,7 +345,7 @@ impl VirtualFSEntryType {
 			VirtualFSEntryType::Tmpfs => None,
 		}
 	}
-	fn should_be_leaf(&self) -> bool {
+	fn should_be_leaf(self) -> bool {
 		matches!(
 			self,
 			VirtualFSEntryType::Tmpfs | VirtualFSEntryType::Symlink

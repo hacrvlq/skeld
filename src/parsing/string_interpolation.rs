@@ -50,7 +50,7 @@ impl InternalError {
 	fn shift(self, amount: usize) -> Self {
 		match self {
 			Self::Other(err) => Self::Other(err.shift(amount)),
-			InternalError::UnresolvableFileVar => self,
+			Self::UnresolvableFileVar => self,
 		}
 	}
 }
@@ -278,7 +278,7 @@ fn convert_dirs_err(
 
 	match err {
 		dirs::Error::UnknownHomeDir => CanonicalizationError {
-			labels: error_labels.clone(),
+			labels: error_labels,
 			notes: vec![
 				concat!(
 					"The home directory is first looked up in `$HOME`,\n",
@@ -289,7 +289,7 @@ fn convert_dirs_err(
 			..CanonicalizationError::main_message("could not determine the home directory")
 		},
 		dirs::Error::RelativeHomeDir { dir } => CanonicalizationError {
-			labels: error_labels.clone(),
+			labels: error_labels,
 			notes: vec![dirs::Error::RelativeHomeDir { dir }.to_string()],
 			..CanonicalizationError::main_message("invalid home directory")
 		},
@@ -297,7 +297,7 @@ fn convert_dirs_err(
 		dirs::Error::RelativeXdgBaseDir { varname, dir } => {
 			let xdg_dirname = xdg_dirname.unwrap();
 			CanonicalizationError {
-				labels: error_labels.clone(),
+				labels: error_labels,
 				notes: vec![dirs::Error::RelativeXdgBaseDir { varname, dir }.to_string()],
 				..CanonicalizationError::main_message(format!("invalid {xdg_dirname} directory"))
 			}

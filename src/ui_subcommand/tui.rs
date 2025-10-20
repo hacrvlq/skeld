@@ -173,15 +173,15 @@ impl<U: Clone> State<'_, U> {
 					.nth(self.selected_button)
 					.map(|button| button.action.clone());
 			}
-			KeyCode::Char('j') | event::KeyCode::Down => {
+			KeyCode::Char('j') | KeyCode::Down => {
 				let max_idx = self.buttons().count().saturating_sub(1);
 				self.selected_button = (self.selected_button + 1).min(max_idx);
 			}
-			KeyCode::Char('k') | event::KeyCode::Up => {
+			KeyCode::Char('k') | KeyCode::Up => {
 				self.selected_button = self.selected_button.saturating_sub(1);
 			}
 			_ => (),
-		};
+		}
 
 		self.check_for_keybind_match()
 	}

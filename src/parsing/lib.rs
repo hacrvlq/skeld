@@ -177,7 +177,7 @@ pub struct FileId(usize);
 // helper config option that eats only a specific key using a specified parse function
 #[derive(Clone)]
 pub struct BaseOption<T> {
-	#[allow(clippy::type_complexity)]
+	#[expect(clippy::type_complexity)]
 	parse_fn: Rc<dyn Fn(&TomlValue) -> ModResult<T>>,
 	name: String,
 	value: Option<(T, Location)>,
@@ -216,6 +216,7 @@ impl<T: PartialEq> ConfigOption for BaseOption<T> {
 pub struct BoolOption(BaseOption<bool>);
 impl BoolOption {
 	pub fn new(name: &str) -> Self {
+		#[expect(clippy::redundant_closure_for_method_calls)]
 		Self(BaseOption::new(name, |value| value.as_bool()))
 	}
 	pub fn get_value(self) -> Option<bool> {
@@ -401,10 +402,9 @@ impl<V> ConfigOption for ArrayOption<V> {
 			}
 			_ => (),
 		}
-		let (values, _, _) =
-			self
-				.value
-				.get_or_insert((Vec::new(), key.loc().clone(), value.loc().clone()));
+		let (values, _, _) = self
+			.value
+			.get_or_insert_with(|| (Vec::new(), key.loc().clone(), value.loc().clone()));
 
 		for inner_value in array {
 			values.push((self.parse_entry_fn)(&inner_value)?);
@@ -458,7 +458,7 @@ pub mod diagnostics {
 				.span
 				.as_ref()
 				.map(resolve_relative_span)
-				.unwrap_or(value_loc.clone());
+				.unwrap_or_else(|| value_loc.clone());
 			DiagLabel::new(label.ty, loc.file.0, loc.span).with_message(&label.message)
 		};
 
