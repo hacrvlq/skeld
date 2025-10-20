@@ -60,7 +60,7 @@ pub fn parse_toml_file<'v>(
 		},
 	})
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TomlKey<'a> {
 	name: Cow<'a, str>,
 	loc: Location,
@@ -155,7 +155,7 @@ impl<'a> TomlTable<'a> {
 	}
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Location {
 	pub file: FileId,
 	pub span: Span,
@@ -175,8 +175,9 @@ pub struct FileId(usize);
 // Basic config options
 // ====================================================================================================
 // helper config option that eats only a specific key using a specified parse function
-#[derive(Clone)]
+#[derive(Clone, derive_more::Debug)]
 pub struct BaseOption<T> {
+	#[debug(skip)]
 	#[expect(clippy::type_complexity)]
 	parse_fn: Rc<dyn Fn(&TomlValue) -> ModResult<T>>,
 	name: String,
@@ -212,7 +213,7 @@ impl<T: PartialEq> ConfigOption for BaseOption<T> {
 	}
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct BoolOption(BaseOption<bool>);
 impl BoolOption {
 	pub fn new(name: &str) -> Self {
@@ -230,7 +231,7 @@ impl ConfigOption for BoolOption {
 }
 
 // useful to suppress "unknown option" errors
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MockOption {
 	name: String,
 }
@@ -247,7 +248,7 @@ impl ConfigOption for MockOption {
 	}
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PathBufOption(BaseOption<PathBuf>);
 impl PathBufOption {
 	pub fn new(
@@ -269,7 +270,7 @@ impl ConfigOption for PathBufOption {
 		self.0.try_eat(key, value)
 	}
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct StringOption(BaseOption<String>);
 impl StringOption {
 	pub fn new(name: &str) -> Self {
@@ -295,13 +296,13 @@ impl ConfigOption for StringOption {
 	}
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CanonicalizationError {
 	pub main_message: String,
 	pub labels: Vec<CanonicalizationLabel>,
 	pub notes: Vec<String>,
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CanonicalizationLabel {
 	pub ty: DiagLabelStyle,
 	pub span: Option<Range<usize>>,
@@ -365,7 +366,7 @@ impl CanonicalizationLabel {
 	}
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ArrayOption<V> {
 	name: String,
 	// value: Option<(_, key location, value location)>

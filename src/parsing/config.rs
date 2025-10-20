@@ -120,7 +120,7 @@ fn parse_command_data(value: &TomlValue) -> ModResult<CommandData> {
 	})
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct ColorschemeOption(BaseOption<tui::Colorscheme>);
 impl ColorschemeOption {
 	fn new() -> Self {

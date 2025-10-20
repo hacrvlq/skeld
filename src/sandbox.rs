@@ -17,12 +17,12 @@ use seccompiler::{
 
 use crate::command::{self, Command};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SandboxParameters {
 	pub fs_tree: VirtualFSTree<()>,
 	pub envvar_whitelist: EnvVarWhitelist,
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum EnvVarWhitelist {
 	All,
 	List(Vec<OsString>),
@@ -152,7 +152,7 @@ fn get_envvar_whitelist_args(envvar_whitelists: &[OsString]) -> Vec<OsString> {
 //    If this is not the case, the tree is silently normalized.
 // 2. Tmpfs/Symlinks cannot have any whitelists in subpaths.
 //    If this is not the case, an error is returned.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct VirtualFSTree<U> {
 	// the current component of the path
 	path_component: OsString,
@@ -162,7 +162,7 @@ pub struct VirtualFSTree<U> {
 	// in the event of an error
 	entry: Option<(VirtualFSEntryType, U)>,
 }
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum VirtualFSEntryType {
 	// whitelists
 	AllowDev,

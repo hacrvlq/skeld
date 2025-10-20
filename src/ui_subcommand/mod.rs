@@ -109,7 +109,7 @@ fn parse_str_as_num(str: impl AsRef<str>) -> Option<u64> {
 	}
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum Action {
 	Run(Command),
 	OpenProject(ProjectDataFile),
@@ -123,7 +123,7 @@ impl Action {
 	}
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CommandData {
 	pub name: String,
 	pub keybind: String,

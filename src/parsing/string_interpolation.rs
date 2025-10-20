@@ -40,7 +40,7 @@ pub fn resolve_placeholders_with_file(
 trait VariableResolver {
 	fn resolve(&self, expr: &str) -> Result<String, InternalError>;
 }
-#[derive(Clone, derive_more::From)]
+#[derive(Clone, Debug, derive_more::From)]
 enum InternalError {
 	UnresolvableFileVar,
 	#[from]
@@ -156,7 +156,7 @@ fn resolve_envvar_expr(
 	}
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct StandardVariableResolver<'a> {
 	unallowed_file_var_note: &'a str,
 }
@@ -175,7 +175,7 @@ impl VariableResolver for StandardVariableResolver<'_> {
 		Err(err.into())
 	}
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct VariableResolverWithFile<'a> {
 	file_var_value: Option<&'a str>,
 }
@@ -328,7 +328,7 @@ fn make_unknown_variable_error(expr: &str, file_var_allowed: bool) -> Canonicali
 	}
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum Placeholder {
 	Tilde {
 		idx: usize,
@@ -339,7 +339,7 @@ enum Placeholder {
 		inner_span: Range<usize>,
 	},
 }
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum BracketType {
 	Square,
 	Round,

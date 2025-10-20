@@ -6,14 +6,14 @@ use crate::{
 	sandbox::SandboxParameters,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ProjectFileData {
 	pub name: String,
 	// if 'keybind' is 'None', an automatically determined keybinding will be used
 	pub keybind: Option<String>,
 	pub project_data_file: ProjectDataFile,
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ProjectDataFile(pub PathBuf);
 impl ProjectDataFile {
 	pub fn load(
@@ -25,7 +25,7 @@ impl ProjectDataFile {
 	}
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ProjectData {
 	pub command: Command,
 	pub sandbox_params: Option<SandboxParameters>,

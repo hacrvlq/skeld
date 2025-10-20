@@ -45,7 +45,7 @@ impl parse_lib::ConfigOption for ProjectDataOption<'_, '_> {
 
 // for each config option the configured value is saved or
 // nothing if this config option has not yet been specified
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RawProjectData {
 	project_dir: PathBufOption,
 	initial_file: StringOption,
@@ -211,7 +211,7 @@ pub enum IntoProjectDataError {
 	Other(crate::GenericError),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct VirtualFSOption {
 	tree: VirtualFSTree<parse_lib::Location>,
 }
@@ -281,7 +281,7 @@ impl parse_lib::ConfigOption for VirtualFSOption {
 	}
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct EditorCommand {
 	program: String,
 	args: Vec<(String, parse_lib::Location)>,
@@ -311,7 +311,7 @@ impl EditorCommand {
 		})
 	}
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct EditorCommandOption {
 	value: Option<(EditorCommand, parse_lib::Location)>,
 }

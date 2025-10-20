@@ -18,14 +18,14 @@ use unicode_width::UnicodeWidthStr;
 
 pub use crossterm::style::Color;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TuiData<U> {
 	pub banner: String,
 	pub sections: Vec<Section<U>>,
 	pub colorscheme: Colorscheme,
 	pub help_text: String,
 }
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Colorscheme {
 	pub normal: Color,
 	pub banner: Color,
@@ -34,12 +34,12 @@ pub struct Colorscheme {
 	pub button_label: Color,
 	pub background: Color,
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Section<U> {
 	pub heading: String,
 	pub buttons: Vec<Button<U>>,
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Button<U> {
 	pub keybind: String,
 	pub text: String,
