@@ -109,31 +109,37 @@ impl SandboxParameters {
 	}
 }
 fn get_virtual_fs_args(fs_tree: &VirtualFSTree<()>) -> Result<Vec<OsString>, Box<dyn Error>> {
+	get_virtual_fs_args_rec(fs_tree, PathBuf::new())
+}
+fn get_virtual_fs_args_rec(
+	fs_tree: &VirtualFSTree<()>,
+	parent_path_prefix: PathBuf,
+) -> Result<Vec<OsString>, Box<dyn Error>> {
+	let path_prefix = parent_path_prefix.join(&fs_tree.path_component);
+
 	let mut args = Vec::new();
-	for (path, ty) in fs_tree.flatten() {
-		assert!(path.is_absolute());
-		let mut path_args = match ty {
-			VirtualFSEntryType::AllowDev => {
-				vec!["--dev-bind-try".into(), path.clone().into(), path.into()]
-			}
-			VirtualFSEntryType::ReadWrite => {
-				vec!["--bind-try".into(), path.clone().into(), path.into()]
-			}
-			VirtualFSEntryType::ReadOnly => {
-				vec!["--ro-bind-try".into(), path.clone().into(), path.into()]
-			}
+
+	if let Some((entry, _)) = fs_tree.entry {
+		let path_str: OsString = path_prefix.to_owned().into();
+		let entry_args: &[_] = match entry {
+			VirtualFSEntryType::AllowDev => &["--dev-bind-try".into(), path_str.clone(), path_str],
+			VirtualFSEntryType::ReadWrite => &["--bind-try".into(), path_str.clone(), path_str],
+			VirtualFSEntryType::ReadOnly => &["--ro-bind-try".into(), path_str.clone(), path_str],
 			VirtualFSEntryType::Symlink => {
-				let target_path = path
+				let target_path = path_prefix
 					.read_link()
-					.map_err(|err| format!("Failed to read symlink `{}`: {err}", path.display()))?;
-				vec!["--symlink".into(), target_path.into(), path.into()]
+					.map_err(|err| format!("Failed to read symlink `{}`: {err}", path_prefix.display()))?;
+				&["--symlink".into(), target_path.into(), path_str]
 			}
-			VirtualFSEntryType::Tmpfs => {
-				vec!["--tmpfs".into(), path.as_os_str().to_owned()]
-			}
+			VirtualFSEntryType::Tmpfs => &["--tmpfs".into(), path_str],
 		};
-		args.append(&mut path_args);
+		args.extend_from_slice(entry_args);
 	}
+
+	for subtree in &fs_tree.children {
+		args.append(&mut get_virtual_fs_args_rec(subtree, path_prefix.clone())?);
+	}
+
 	Ok(args)
 }
 fn get_envvar_whitelist_args(envvar_whitelists: &[OsString]) -> Vec<OsString> {
@@ -315,24 +321,6 @@ impl<U: Clone> VirtualFSTree<U> {
 		}
 		assert!(!self.children.is_empty());
 		self.children[0].find_subpath_entry()
-	}
-	fn flatten(&self) -> Vec<(PathBuf, VirtualFSEntryType)> {
-		let mut entries = Vec::new();
-		let path: PathBuf = self.path_component.clone().into();
-
-		if let Some(entry) = &self.entry {
-			entries.push((path.clone(), entry.0));
-		}
-
-		for child in &self.children {
-			let child_entries = child
-				.flatten()
-				.into_iter()
-				.map(|entry| (path.join(entry.0), entry.1));
-			entries.extend(child_entries);
-		}
-
-		entries
 	}
 }
 impl VirtualFSEntryType {
