@@ -90,7 +90,7 @@ impl SandboxParameters {
 			EnvVarWhitelist::All => (),
 			EnvVarWhitelist::List(list) => {
 				bwrap_args.push("--clearenv".into());
-				bwrap_args.append(&mut get_envvar_whitelist_args(list));
+				bwrap_args.extend(get_envvar_whitelist_args(list));
 			}
 		}
 
@@ -101,7 +101,7 @@ impl SandboxParameters {
 		//      it is possible to whitelist subpaths of /dev
 		bwrap_args.extend_from_slice(&["--dev".into(), "/dev".into()]);
 
-		bwrap_args.append(&mut get_virtual_fs_args(&self.fs_tree)?);
+		bwrap_args.extend(get_virtual_fs_args(&self.fs_tree)?);
 
 		bwrap_args.extend_from_slice(&["--unshare-ipc".into(), "--unshare-pid".into()]);
 
@@ -137,7 +137,7 @@ fn get_virtual_fs_args_rec(
 	}
 
 	for subtree in &fs_tree.children {
-		args.append(&mut get_virtual_fs_args_rec(subtree, path_prefix.clone())?);
+		args.extend(get_virtual_fs_args_rec(subtree, path_prefix.clone())?);
 	}
 
 	Ok(args)

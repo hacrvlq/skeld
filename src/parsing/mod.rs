@@ -95,11 +95,11 @@ impl ParseContext<'_> {
 			.map_err(|err| format!("Failed to determine the skeld data directories:\n  {err}"))?;
 		for data_root_dir in skeld_data_dirs {
 			let projects_dir = data_root_dir.join(&subdir);
-			let mut projects_in_dir = get_toml_files_from_dir(projects_dir)?
+			let projects_in_dir = get_toml_files_from_dir(projects_dir)?
 				.into_iter()
 				.map(|entry| self.parse_project_file_stage1(entry))
 				.collect::<ModResult<Vec<_>>>()?;
-			projects.append(&mut projects_in_dir);
+			projects.extend(projects_in_dir);
 		}
 
 		Ok(projects)
