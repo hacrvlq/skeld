@@ -122,7 +122,7 @@ impl ParseContext<'_> {
 			docs-section: docs_section,
 		)?;
 
-		let project_name = match name.get_value() {
+		let project_name = match name.get_value()? {
 			Some(name) => name,
 			None => {
 				let file_stem = path.file_stem().unwrap();
@@ -146,7 +146,7 @@ impl ParseContext<'_> {
 
 		Ok(ProjectFileData {
 			name: project_name,
-			keybind: keybind.get_value(),
+			keybind: keybind.get_value()?,
 			project_data_file: ProjectDataFile(path.to_path_buf()),
 		})
 	}

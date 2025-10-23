@@ -14,6 +14,7 @@ use codespan_reporting::{
 use toml_span::Span;
 
 use super::ModResult;
+use crate::vec_ext::VecExt as _;
 
 pub use codespan_reporting::diagnostic::Severity;
 pub use toml_span::value::ValueInner as TomlInnerValue;
@@ -202,29 +203,42 @@ pub struct FileId(usize);
 // ====================================================================================================
 // Basic config options
 // ====================================================================================================
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Priority(pub i64);
+
 // helper config option that eats only a specific key using a specified parse function
 #[derive(Clone, derive_more::Debug)]
 pub struct BaseOption<T> {
 	#[debug(skip)]
 	parse_fn: Rc<dyn Fn(TomlValue) -> ModResult<T>>,
 	name: String,
-	value: Option<(T, Location)>,
+	parsed_values: Vec<(T, Location, Priority)>,
 }
 impl<T> BaseOption<T> {
 	pub fn new(name: &str, parse_fn: impl Fn(TomlValue) -> ModResult<T> + 'static) -> Self {
 		Self {
 			parse_fn: Rc::new(parse_fn),
 			name: name.to_string(),
-			value: None,
+			parsed_values: Vec::new(),
 		}
 	}
-	pub fn get_value(self) -> Option<T> {
-		self.value.map(|(value, _)| value)
+	pub fn get_value(self) -> ModResult<Option<T>> {
+		let max_prio_values = self.parsed_values.get_maximums_by_key(|(_, _, prio)| *prio);
+
+		if max_prio_values.len() >= 2 {
+			return Err(
+				diagnostics::multiple_definitions(&max_prio_values[0].1, &max_prio_values[1].1, &self.name)
+					.into(),
+			);
+		}
+
+		let max_prio_value = max_prio_values.into_iter().next();
+		Ok(max_prio_value.map(|(value, _, _)| value))
 	}
 }
 impl<T: PartialEq> ConfigOption for BaseOption<T> {
 	type ParsedKey = Location;
-	type UserData = ();
+	type UserData = Priority;
 
 	fn would_eat(&self, key: &TomlKey) -> Option<Self::ParsedKey> {
 		(key.name() == self.name).then(|| key.loc().clone())
@@ -234,16 +248,10 @@ impl<T: PartialEq> ConfigOption for BaseOption<T> {
 		&mut self,
 		key_loc: Self::ParsedKey,
 		value: TomlValue,
-		_user_data: Self::UserData,
+		priority: Self::UserData,
 	) -> ModResult<()> {
 		let value = (self.parse_fn)(value)?;
-		match &self.value {
-			Some(prev_val) if prev_val.0 != value => {
-				return Err(diagnostics::multiple_definitions(&prev_val.1, &key_loc, &self.name).into());
-			}
-			_ => (),
-		}
-		self.value = Some((value, key_loc));
+		self.parsed_values.push((value, key_loc, priority));
 		Ok(())
 	}
 }
@@ -286,7 +294,7 @@ impl BoolOption {
 	pub fn new(name: &str) -> Self {
 		Self(BaseOption::new(name, |value| value.as_bool()))
 	}
-	pub fn get_value(self) -> Option<bool> {
+	pub fn get_value(self) -> ModResult<Option<bool>> {
 		self.0.get_value()
 	}
 }
@@ -331,7 +339,7 @@ impl PathBufOption {
 				.map_err(|err| diagnostics::failed_canonicalization(value.loc(), &err).into())
 		}))
 	}
-	pub fn get_value(self) -> Option<PathBuf> {
+	pub fn get_value(self) -> ModResult<Option<PathBuf>> {
 		self.0.get_value()
 	}
 }
@@ -350,7 +358,7 @@ impl StringOption {
 				.map_err(|err| diagnostics::failed_canonicalization(value.loc(), &err).into())
 		}))
 	}
-	pub fn get_value(self) -> Option<String> {
+	pub fn get_value(self) -> ModResult<Option<String>> {
 		self.0.get_value()
 	}
 }

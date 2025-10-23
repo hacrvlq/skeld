@@ -70,11 +70,11 @@ pub fn parse_config_file(
 	Ok(GlobalConfig {
 		commands: commands.get_value().unwrap_or_default(),
 		global_project_data: global_project_data.get_value(),
-		colorscheme: colorscheme.get_value().unwrap_or(DEFAULT_COLORSCHEME),
+		colorscheme: colorscheme.get_value()?.unwrap_or(DEFAULT_COLORSCHEME),
 		banner: banner
-			.get_value()
+			.get_value()?
 			.unwrap_or_else(|| DEFAULT_BANNER.to_string()),
-		disable_help_text: disable_help_text.get_value().unwrap_or_default(),
+		disable_help_text: disable_help_text.get_value()?.unwrap_or_default(),
 	})
 }
 fn parse_command_data(value: TomlValue) -> ModResult<CommandData> {
@@ -96,10 +96,10 @@ fn parse_command_data(value: TomlValue) -> ModResult<CommandData> {
 		docs-section: docs_section,
 	)?;
 	let name = name
-		.get_value()
+		.get_value()?
 		.ok_or_else(|| diagnostics::missing_option(&value_loc, "name", docs_section))?;
 	let keybind = keybind
-		.get_value()
+		.get_value()?
 		.ok_or_else(|| diagnostics::missing_option(&value_loc, "keybind", docs_section))?;
 	let command = command
 		.get_value()
@@ -107,10 +107,10 @@ fn parse_command_data(value: TomlValue) -> ModResult<CommandData> {
 	// detach' is useless if 'command' is empty,
 	// as skeld will quit immediately in this case
 	let detach = if command.is_empty() {
-		detach.get_value().unwrap_or(false)
+		detach.get_value()?.unwrap_or(false)
 	} else {
 		detach
-			.get_value()
+			.get_value()?
 			.ok_or_else(|| diagnostics::missing_option(&value_loc, "detach", docs_section))?
 	};
 
@@ -126,7 +126,7 @@ impl ColorschemeOption {
 	fn new() -> Self {
 		Self(BaseOption::new("colorscheme", parse_colorscheme))
 	}
-	fn get_value(self) -> Option<tui::Colorscheme> {
+	fn get_value(self) -> ModResult<Option<tui::Colorscheme>> {
 		self.0.get_value()
 	}
 }
@@ -148,7 +148,7 @@ fn parse_colorscheme(value: TomlValue) -> ModResult<tui::Colorscheme> {
 	let mut resulting_colorscheme = DEFAULT_COLORSCHEME;
 	macro_rules! handle_color_option {
 		($opt_name:ident) => {
-			if let Some(color) = $opt_name.get_value() {
+			if let Some(color) = $opt_name.get_value()? {
 				resulting_colorscheme.$opt_name = color;
 			}
 		};

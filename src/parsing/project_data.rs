@@ -88,18 +88,18 @@ impl RawProjectData {
 	pub(super) fn into_project_data(self) -> Result<ProjectData, IntoProjectDataError> {
 		let project_dir = self
 			.project_dir
-			.get_value()
+			.get_value()?
 			.ok_or_else(|| IntoProjectDataError::MissingConfigOption("project-dir".to_string()))?;
-		let initial_file = self.initial_file.get_value();
+		let initial_file = self.initial_file.get_value()?;
 		let editor = self
 			.editor
 			.value
 			.ok_or_else(|| IntoProjectDataError::MissingConfigOption("editor".to_string()))?
 			.0;
 		let fs_tree = self.virtual_fs.tree;
-		let whitelist_all_envvars = self.whitelist_all_envvars.get_value().unwrap_or_default();
+		let whitelist_all_envvars = self.whitelist_all_envvars.get_value()?.unwrap_or_default();
 		let whitelist_envvars = self.whitelist_envvars.get_value().unwrap_or_default();
-		let disable_sandbox = self.disable_sandbox.get_value().unwrap_or_default();
+		let disable_sandbox = self.disable_sandbox.get_value()?.unwrap_or_default();
 
 		let whitelist_envvars = if whitelist_all_envvars {
 			EnvVarWhitelist::All
@@ -370,7 +370,7 @@ impl parse_lib::ConfigOption for EditorCommandOption {
 			.get_value_with_loc()
 			.ok_or_else(|| diagnostics::missing_option(&key_loc, "cmd", docs_section))?;
 		let detach = detach
-			.get_value()
+			.get_value()?
 			.ok_or_else(|| diagnostics::missing_option(&key_loc, "detach", docs_section))?;
 
 		let mut cmd_iter = cmd.0.into_iter();

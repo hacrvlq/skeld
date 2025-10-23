@@ -8,6 +8,8 @@ mod parsing;
 mod project;
 mod sandbox;
 mod ui_subcommand;
+#[path = "utils/vec_ext.rs"]
+mod vec_ext;
 
 use std::{path::PathBuf, process::ExitCode};
 
