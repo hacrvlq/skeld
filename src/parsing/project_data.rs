@@ -13,6 +13,7 @@ use crate::{
 	parsing::lib::{CanonicalizationError, CanonicalizationLabel},
 	project::ProjectData,
 	sandbox::{EnvVarWhitelist, FSTreeError, SandboxParameters, VirtualFSEntryType, VirtualFSTree},
+	vec_ext::VecExt as _,
 };
 
 pub struct ProjectDataOption<'a, 'b> {
@@ -45,8 +46,24 @@ impl parse_lib::ConfigOption for ProjectDataOption<'_, '_> {
 		value: TomlValue,
 		_user_data: Self::UserData,
 	) -> ModResult<()> {
-		let table = value.into_table()?;
-		self.value.parse_table(table, self.ctx)?;
+		let mut table = value.into_table()?;
+
+		let standard_priority = Default::default();
+		let priorities = vec![
+			("defaults", parse_lib::Priority(-1)),
+			("forced", parse_lib::Priority(1)),
+		];
+
+		for (name, priority) in priorities {
+			if let Some((_, prioritised_table)) = table.remove_entry(name) {
+				let prioritised_table = prioritised_table.into_table()?;
+				self
+					.value
+					.parse_table(prioritised_table, priority, self.ctx)?;
+			}
+		}
+		self.value.parse_table(table, standard_priority, self.ctx)?;
+
 		Ok(())
 	}
 }
@@ -93,9 +110,8 @@ impl RawProjectData {
 		let initial_file = self.initial_file.get_value()?;
 		let editor = self
 			.editor
-			.value
-			.ok_or_else(|| IntoProjectDataError::MissingConfigOption("editor".to_string()))?
-			.0;
+			.get_value()?
+			.ok_or_else(|| IntoProjectDataError::MissingConfigOption("editor".to_string()))?;
 		let fs_tree = self.virtual_fs.tree;
 		let whitelist_all_envvars = self.whitelist_all_envvars.get_value()?.unwrap_or_default();
 		let whitelist_envvars = self.whitelist_envvars.get_value().unwrap_or_default();
@@ -116,7 +132,12 @@ impl RawProjectData {
 			}),
 		})
 	}
-	fn parse_path(&mut self, path: impl AsRef<Path>, ctx: &mut ParseContext) -> ModResult<()> {
+	fn parse_path(
+		&mut self,
+		path: impl AsRef<Path>,
+		priority: parse_lib::Priority,
+		ctx: &mut ParseContext,
+	) -> ModResult<()> {
 		let path = path.as_ref();
 
 		if self.parsed_files.iter().any(|p| p == path) {
@@ -127,10 +148,15 @@ impl RawProjectData {
 		let mut outlivers = None;
 		let parsed_contents = parse_lib::parse_toml_file(path, ctx.file_database, &mut outlivers)?;
 
-		self.parse_table(parsed_contents, ctx)?;
+		self.parse_table(parsed_contents, priority, ctx)?;
 		Ok(())
 	}
-	fn parse_table(&mut self, table: TomlTable, ctx: &mut ParseContext) -> ModResult<()> {
+	fn parse_table(
+		&mut self,
+		table: TomlTable,
+		priority: parse_lib::Priority,
+		ctx: &mut ParseContext,
+	) -> ModResult<()> {
 		let mut include_option = ArrayOption::new("include", false, |raw_value| {
 			let value = raw_value.as_str()?;
 			Self::canonicalize_include_path(value)
@@ -140,19 +166,19 @@ impl RawProjectData {
 		parse_lib::parse_table!(
 			table => [
 				include_option,
-				self.project_dir,
-				self.initial_file,
-				self.editor,
+				self.project_dir ; priority,
+				self.initial_file ; priority,
+				self.editor ; priority,
 				self.virtual_fs,
 				self.whitelist_envvars,
-				self.whitelist_all_envvars,
-				self.disable_sandbox
+				self.whitelist_all_envvars ; priority,
+				self.disable_sandbox ; priority
 			],
 			docs-section: "PROJECT DATA FORMAT",
 		)?;
 
 		for include_path in include_option.get_value().unwrap_or_default() {
-			self.parse_path(include_path, ctx)?;
+			self.parse_path(include_path, priority, ctx)?;
 		}
 		Ok(())
 	}
@@ -329,16 +355,31 @@ impl EditorCommand {
 }
 #[derive(Clone, Debug)]
 struct EditorCommandOption {
-	value: Option<(EditorCommand, parse_lib::Location)>,
+	parsed_values: Vec<(EditorCommand, parse_lib::Location, parse_lib::Priority)>,
 }
 impl EditorCommandOption {
 	fn new() -> Self {
-		Self { value: None }
+		Self {
+			parsed_values: Vec::new(),
+		}
+	}
+	fn get_value(self) -> ModResult<Option<EditorCommand>> {
+		let max_prio_values = self.parsed_values.get_maximums_by_key(|(_, _, prio)| *prio);
+
+		if max_prio_values.len() >= 2 {
+			return Err(
+				diagnostics::multiple_definitions(&max_prio_values[0].1, &max_prio_values[1].1, "editor")
+					.into(),
+			);
+		}
+
+		let max_prio_value = max_prio_values.into_iter().next();
+		Ok(max_prio_value.map(|(value, _, _)| value))
 	}
 }
 impl parse_lib::ConfigOption for EditorCommandOption {
 	type ParsedKey = parse_lib::Location;
-	type UserData = ();
+	type UserData = parse_lib::Priority;
 
 	fn would_eat(&self, key: &TomlKey) -> Option<Self::ParsedKey> {
 		(key.name() == "editor").then(|| key.loc().clone())
@@ -348,11 +389,8 @@ impl parse_lib::ConfigOption for EditorCommandOption {
 		&mut self,
 		key_loc: Self::ParsedKey,
 		value: TomlValue,
-		_user_data: Self::UserData,
+		priority: Self::UserData,
 	) -> ModResult<()> {
-		if let Some((_, prev_loc)) = &self.value {
-			return Err(diagnostics::multiple_definitions(&key_loc, prev_loc, "editor").into());
-		}
 		let table = value.into_table()?;
 
 		let mut cmd = ArrayOption::new("cmd", false, |raw_value| {
@@ -392,7 +430,7 @@ impl parse_lib::ConfigOption for EditorCommandOption {
 			args,
 			detach,
 		};
-		self.value = Some((editor_cmd, key_loc));
+		self.parsed_values.push((editor_cmd, key_loc, priority));
 		Ok(())
 	}
 }

@@ -179,6 +179,18 @@ impl<'a> TomlTable<'a> {
 			)
 		})
 	}
+	pub fn remove_entry(&mut self, key_name: &str) -> Option<(TomlKey<'a>, TomlValue<'a>)> {
+		let search_key = toml_span::value::Key {
+			name: key_name.to_owned().into(),
+			span: Default::default(),
+		};
+		self.table.remove_entry(&search_key).map(|(key, value)| {
+			(
+				TomlKey::from_key(&key, self.loc.file),
+				TomlValue::from_value(value, self.loc.file),
+			)
+		})
+	}
 	pub fn loc(&self) -> &Location {
 		&self.loc
 	}
