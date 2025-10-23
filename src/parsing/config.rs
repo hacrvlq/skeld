@@ -3,8 +3,8 @@ use std::path::Path;
 use super::{
 	ModResult, ParseContext,
 	lib::{
-		self as parse_lib, ArrayOption, BaseOption, BoolOption, ConfigOption, Diagnostic, StringOption,
-		TomlKey, TomlValue, diagnostics,
+		self as parse_lib, ArrayOption, BaseOption, BoolOption, Diagnostic, StringOption, TomlValue,
+		diagnostics,
 	},
 	project_data::{self, ProjectDataOption},
 	string_interpolation,
@@ -120,19 +120,13 @@ fn parse_command_data(value: &TomlValue) -> ModResult<CommandData> {
 	})
 }
 
-#[derive(Clone, Debug)]
-struct ColorschemeOption(BaseOption<tui::Colorscheme>);
+parse_lib::wrap_BaseOption!(ColorschemeOption : tui::Colorscheme);
 impl ColorschemeOption {
 	fn new() -> Self {
 		Self(BaseOption::new("colorscheme", parse_colorscheme))
 	}
 	fn get_value(self) -> Option<tui::Colorscheme> {
 		self.0.get_value()
-	}
-}
-impl ConfigOption for ColorschemeOption {
-	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool> {
-		self.0.try_eat(key, value)
 	}
 }
 fn parse_colorscheme(value: &TomlValue) -> ModResult<tui::Colorscheme> {

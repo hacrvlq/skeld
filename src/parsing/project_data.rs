@@ -33,7 +33,14 @@ impl<'a, 'b> ProjectDataOption<'a, 'b> {
 	}
 }
 impl parse_lib::ConfigOption for ProjectDataOption<'_, '_> {
-	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool> {
+	type UserData = ();
+
+	fn try_eat_with_user_data(
+		&mut self,
+		key: &TomlKey,
+		value: &TomlValue,
+		_user_data: Self::UserData,
+	) -> ModResult<bool> {
 		if key.name() != self.name {
 			return Ok(false);
 		}
@@ -223,7 +230,14 @@ impl VirtualFSOption {
 	}
 }
 impl parse_lib::ConfigOption for VirtualFSOption {
-	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool> {
+	type UserData = ();
+
+	fn try_eat_with_user_data(
+		&mut self,
+		key: &TomlKey,
+		value: &TomlValue,
+		_user_data: Self::UserData,
+	) -> ModResult<bool> {
 		let fs_entry_type;
 		if key.name() == "whitelist-dev" {
 			fs_entry_type = VirtualFSEntryType::AllowDev;
@@ -321,7 +335,14 @@ impl EditorCommandOption {
 	}
 }
 impl parse_lib::ConfigOption for EditorCommandOption {
-	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool> {
+	type UserData = ();
+
+	fn try_eat_with_user_data(
+		&mut self,
+		key: &TomlKey,
+		value: &TomlValue,
+		_user_data: Self::UserData,
+	) -> ModResult<bool> {
 		if key.name() != "editor" {
 			return Ok(false);
 		}

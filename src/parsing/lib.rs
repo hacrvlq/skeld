@@ -21,10 +21,21 @@ pub type Diagnostic = diagnostic::Diagnostic<usize>;
 pub type FileDatabase = codespan_files::SimpleFiles<String, String>;
 
 // trait implementors should save current config value
-// and update it with each 'try_eat' when appropiate
+// and update it with each 'try_eat_with_user_data'
+// when appropiate
 pub trait ConfigOption {
+	type UserData: Default;
+
 	// should return true if key is consumed and false otherwise
-	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool>;
+	fn try_eat_with_user_data(
+		&mut self,
+		key: &TomlKey,
+		value: &TomlValue,
+		user_data: Self::UserData,
+	) -> ModResult<bool>;
+	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool> {
+		self.try_eat_with_user_data(key, value, Self::UserData::default())
+	}
 }
 
 // =================================================================================================
@@ -196,7 +207,14 @@ impl<T> BaseOption<T> {
 	}
 }
 impl<T: PartialEq> ConfigOption for BaseOption<T> {
-	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool> {
+	type UserData = ();
+
+	fn try_eat_with_user_data(
+		&mut self,
+		key: &TomlKey,
+		value: &TomlValue,
+		_user_data: Self::UserData,
+	) -> ModResult<bool> {
 		if key.name != self.name {
 			return Ok(false);
 		}
@@ -213,8 +231,35 @@ impl<T: PartialEq> ConfigOption for BaseOption<T> {
 	}
 }
 
-#[derive(Clone, Debug)]
-pub struct BoolOption(BaseOption<bool>);
+macro_rules! wrap_BaseOption {
+	($vis:vis $name:ident : $inner_type:ty) => {
+		#[derive(std::clone::Clone, std::fmt::Debug)]
+		$vis struct $name($crate::parsing::lib::BaseOption<$inner_type>);
+
+		impl $crate::parsing::lib::ConfigOption for $name {
+			type UserData = <$crate::parsing::lib::BaseOption<$inner_type> as $crate::parsing::lib::ConfigOption>::UserData;
+
+			fn try_eat_with_user_data(
+				&mut self,
+				key: &$crate::parsing::lib::TomlKey,
+				value: &$crate::parsing::lib::TomlValue,
+				user_data: Self::UserData,
+			) -> $crate::GenericResult<bool> {
+				self.0.try_eat_with_user_data(key, value, user_data)
+			}
+			fn try_eat(
+				&mut self,
+				key: &$crate::parsing::lib::TomlKey,
+				value: &$crate::parsing::lib::TomlValue,
+			) -> $crate::GenericResult<bool> {
+				self.0.try_eat(key, value)
+			}
+		}
+	};
+}
+pub(crate) use wrap_BaseOption;
+
+wrap_BaseOption!(pub BoolOption : bool);
 impl BoolOption {
 	pub fn new(name: &str) -> Self {
 		#[expect(clippy::redundant_closure_for_method_calls)]
@@ -222,11 +267,6 @@ impl BoolOption {
 	}
 	pub fn get_value(self) -> Option<bool> {
 		self.0.get_value()
-	}
-}
-impl ConfigOption for BoolOption {
-	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool> {
-		self.0.try_eat(key, value)
 	}
 }
 
@@ -243,13 +283,18 @@ impl MockOption {
 	}
 }
 impl ConfigOption for MockOption {
-	fn try_eat(&mut self, key: &TomlKey, _value: &TomlValue) -> ModResult<bool> {
+	type UserData = ();
+	fn try_eat_with_user_data(
+		&mut self,
+		key: &TomlKey,
+		_value: &TomlValue,
+		_user_data: Self::UserData,
+	) -> ModResult<bool> {
 		Ok(key.name == self.name)
 	}
 }
 
-#[derive(Clone, Debug)]
-pub struct PathBufOption(BaseOption<PathBuf>);
+wrap_BaseOption!(pub PathBufOption : PathBuf);
 impl PathBufOption {
 	pub fn new(
 		name: &str,
@@ -265,13 +310,7 @@ impl PathBufOption {
 		self.0.get_value()
 	}
 }
-impl ConfigOption for PathBufOption {
-	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool> {
-		self.0.try_eat(key, value)
-	}
-}
-#[derive(Clone, Debug)]
-pub struct StringOption(BaseOption<String>);
+wrap_BaseOption!(pub StringOption : String);
 impl StringOption {
 	pub fn new(name: &str) -> Self {
 		Self::new_with_canonicalization(name, |str| Ok(str.to_string()))
@@ -288,11 +327,6 @@ impl StringOption {
 	}
 	pub fn get_value(self) -> Option<String> {
 		self.0.get_value()
-	}
-}
-impl ConfigOption for StringOption {
-	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool> {
-		self.0.try_eat(key, value)
 	}
 }
 
@@ -391,7 +425,14 @@ impl<V> ArrayOption<V> {
 	}
 }
 impl<V> ConfigOption for ArrayOption<V> {
-	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool> {
+	type UserData = ();
+
+	fn try_eat_with_user_data(
+		&mut self,
+		key: &TomlKey,
+		value: &TomlValue,
+		_user_data: Self::UserData,
+	) -> ModResult<bool> {
 		if key.name != self.name {
 			return Ok(false);
 		}
