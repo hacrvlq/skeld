@@ -58,9 +58,10 @@ impl ParseContext<'_> {
 		path: impl AsRef<Path>,
 		initial_data: RawProjectData,
 	) -> ModResult<ProjectData> {
-		let mut outlivers = (None, None);
+		let mut outlivers = None;
 		let parsed_contents =
 			parse_lib::parse_toml_file(path.as_ref(), self.file_database, &mut outlivers)?;
+		let parsed_contents_loc = parsed_contents.loc().clone();
 
 		let mut name = MockOption::new("name");
 		let mut keybind = MockOption::new("keybind");
@@ -68,7 +69,7 @@ impl ParseContext<'_> {
 
 		let docs_section = "PROJECTS";
 		parse_lib::parse_table!(
-			&parsed_contents => [name, keybind, project_data],
+			parsed_contents => [name, keybind, project_data],
 			docs-section: docs_section,
 		)?;
 		let project_data = project_data
@@ -76,7 +77,7 @@ impl ParseContext<'_> {
 			.into_project_data()
 			.map_err(|err| match err {
 				IntoProjectDataError::MissingConfigOption(missing) => {
-					lib::diagnostics::missing_option(parsed_contents.loc(), &missing, docs_section).into()
+					lib::diagnostics::missing_option(&parsed_contents_loc, &missing, docs_section).into()
 				}
 				IntoProjectDataError::Other(err) => err,
 			})?;
@@ -107,7 +108,7 @@ impl ParseContext<'_> {
 	fn parse_project_file_stage1(&mut self, path: impl AsRef<Path>) -> ModResult<ProjectFileData> {
 		let path = path.as_ref();
 
-		let mut outlivers = (None, None);
+		let mut outlivers = None;
 		let parsed_contents = parse_lib::parse_toml_file(path, self.file_database, &mut outlivers)?;
 
 		let mut name = StringOption::new("name");
@@ -117,7 +118,7 @@ impl ParseContext<'_> {
 
 		let docs_section = "PROJECTS";
 		parse_lib::parse_table!(
-			&parsed_contents => [name, keybind, project_data],
+			parsed_contents => [name, keybind, project_data],
 			docs-section: docs_section,
 		)?;
 

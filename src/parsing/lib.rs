@@ -21,20 +21,22 @@ pub type Diagnostic = diagnostic::Diagnostic<usize>;
 pub type FileDatabase = codespan_files::SimpleFiles<String, String>;
 
 // trait implementors should save current config value
-// and update it with each 'try_eat_with_user_data'
-// when appropiate
+// and update it with each 'eat_with_user_data'
 pub trait ConfigOption {
+	type ParsedKey;
 	type UserData: Default;
 
-	// should return true if key is consumed and false otherwise
-	fn try_eat_with_user_data(
+	// should return 'Some' when 'key' is to be processed by this option
+	fn would_eat(&self, key: &TomlKey) -> Option<Self::ParsedKey>;
+	fn eat_with_user_data(
 		&mut self,
-		key: &TomlKey,
-		value: &TomlValue,
+		key: Self::ParsedKey,
+		value: TomlValue,
 		user_data: Self::UserData,
-	) -> ModResult<bool>;
-	fn try_eat(&mut self, key: &TomlKey, value: &TomlValue) -> ModResult<bool> {
-		self.try_eat_with_user_data(key, value, Self::UserData::default())
+	) -> ModResult<()>;
+
+	fn eat(&mut self, key: Self::ParsedKey, value: TomlValue) -> ModResult<()> {
+		self.eat_with_user_data(key, value, Self::UserData::default())
 	}
 }
 
@@ -45,23 +47,25 @@ pub fn parse_toml_file<'v>(
 	path: impl AsRef<Path>,
 	file_database: &mut FileDatabase,
 	// file contents and root toml value need to outlive the return value
-	outlivers: &'v mut (Option<String>, Option<toml_span::Value<'v>>),
+	outlivers: &'v mut Option<String>,
 ) -> ModResult<TomlTable<'v>> {
 	let path = path.as_ref();
 	assert!(path.is_absolute());
 
-	outlivers.0 = Some(
+	*outlivers = Some(
 		fs::read_to_string(path)
 			.map_err(|err| format!("Failed to read file `{}`: {err}", path.display()))?,
 	);
-	let file_contents = outlivers.0.as_ref().unwrap();
+	let file_contents = outlivers.as_ref().unwrap();
 
 	let file_id =
 		FileId(file_database.add(path.to_string_lossy().to_string(), file_contents.clone()));
 
-	outlivers.1 = Some(toml_span::parse(file_contents).map_err(|err| err.to_diagnostic(file_id.0))?);
-	let parsed_contents = outlivers.1.as_ref().unwrap();
-	let table = parsed_contents.as_table().unwrap();
+	let mut parsed_contents =
+		toml_span::parse(file_contents).map_err(|err| err.to_diagnostic(file_id.0))?;
+	let TomlInnerValue::Table(table) = parsed_contents.take() else {
+		unreachable!()
+	};
 
 	Ok(TomlTable {
 		table,
@@ -77,6 +81,12 @@ pub struct TomlKey<'a> {
 	loc: Location,
 }
 impl<'a> TomlKey<'a> {
+	pub fn new_owned(name: String, loc: Location) -> TomlKey<'static> {
+		TomlKey {
+			name: name.into(),
+			loc,
+		}
+	}
 	fn from_key(key: &toml_span::value::Key<'a>, file: FileId) -> Self {
 		Self {
 			name: key.name.clone(),
@@ -93,14 +103,15 @@ impl<'a> TomlKey<'a> {
 		&self.loc
 	}
 }
+#[derive(Debug)]
 pub struct TomlValue<'a> {
-	value: &'a TomlInnerValue<'a>,
+	value: TomlInnerValue<'a>,
 	loc: Location,
 }
 impl<'a> TomlValue<'a> {
-	fn from_value(value: &'a toml_span::Value<'a>, file: FileId) -> Self {
+	fn from_value(mut value: toml_span::Value<'a>, file: FileId) -> Self {
 		Self {
-			value: value.as_ref(),
+			value: value.take(),
 			loc: Location {
 				file,
 				span: value.span,
@@ -125,38 +136,44 @@ impl<'a> TomlValue<'a> {
 			diagnostics::wrong_type(self, &[TomlInnerValue::String(Default::default())]).into()
 		})
 	}
-	pub fn as_array(&self) -> ModResult<Vec<TomlValue<'_>>> {
-		Ok(
-			self
-				.value
-				.as_array()
-				.ok_or_else(|| diagnostics::wrong_type(self, &[TomlInnerValue::Array(Default::default())]))?
-				.iter()
-				.map(|value| TomlValue::from_value(value, self.loc().file))
-				.collect(),
-		)
+	pub fn into_array(self) -> ModResult<Vec<TomlValue<'a>>> {
+		let file = self.loc().file;
+
+		let TomlInnerValue::Array(array) = self.value else {
+			return Err(
+				diagnostics::wrong_type(&self, &[TomlInnerValue::Table(Default::default())]).into(),
+			);
+		};
+
+		let array = array
+			.into_iter()
+			.map(|value| TomlValue::from_value(value, file))
+			.collect();
+
+		Ok(array)
 	}
-	pub fn as_table(&self) -> ModResult<TomlTable<'_>> {
-		let table = self
-			.value
-			.as_table()
-			.ok_or_else(|| diagnostics::wrong_type(self, &[TomlInnerValue::Table(Default::default())]))?;
+	pub fn into_table(self) -> ModResult<TomlTable<'a>> {
+		let TomlInnerValue::Table(table) = self.value else {
+			return Err(
+				diagnostics::wrong_type(&self, &[TomlInnerValue::Table(Default::default())]).into(),
+			);
+		};
 		Ok(TomlTable {
 			table,
-			loc: self.loc().clone(),
+			loc: self.loc,
 		})
 	}
 }
 pub struct TomlTable<'a> {
-	table: &'a toml_span::value::Table<'a>,
+	table: toml_span::value::Table<'a>,
 	loc: Location,
 }
 impl<'a> TomlTable<'a> {
-	pub fn iter(&self) -> impl Iterator<Item = (TomlKey<'a>, TomlValue<'a>)> {
+	pub fn into_iter(self) -> impl Iterator<Item = (TomlKey<'a>, TomlValue<'a>)> {
 		let file_id = self.loc().file;
-		self.table.iter().map(move |(key, value)| {
+		self.table.into_iter().map(move |(key, value)| {
 			(
-				TomlKey::from_key(key, file_id),
+				TomlKey::from_key(&key, file_id),
 				TomlValue::from_value(value, file_id),
 			)
 		})
@@ -189,13 +206,12 @@ pub struct FileId(usize);
 #[derive(Clone, derive_more::Debug)]
 pub struct BaseOption<T> {
 	#[debug(skip)]
-	#[expect(clippy::type_complexity)]
-	parse_fn: Rc<dyn Fn(&TomlValue) -> ModResult<T>>,
+	parse_fn: Rc<dyn Fn(TomlValue) -> ModResult<T>>,
 	name: String,
 	value: Option<(T, Location)>,
 }
 impl<T> BaseOption<T> {
-	pub fn new(name: &str, parse_fn: impl Fn(&TomlValue) -> ModResult<T> + 'static) -> Self {
+	pub fn new(name: &str, parse_fn: impl Fn(TomlValue) -> ModResult<T> + 'static) -> Self {
 		Self {
 			parse_fn: Rc::new(parse_fn),
 			name: name.to_string(),
@@ -207,27 +223,28 @@ impl<T> BaseOption<T> {
 	}
 }
 impl<T: PartialEq> ConfigOption for BaseOption<T> {
+	type ParsedKey = Location;
 	type UserData = ();
 
-	fn try_eat_with_user_data(
-		&mut self,
-		key: &TomlKey,
-		value: &TomlValue,
-		_user_data: Self::UserData,
-	) -> ModResult<bool> {
-		if key.name != self.name {
-			return Ok(false);
-		}
+	fn would_eat(&self, key: &TomlKey) -> Option<Self::ParsedKey> {
+		(key.name() == self.name).then(|| key.loc().clone())
+	}
 
+	fn eat_with_user_data(
+		&mut self,
+		key_loc: Self::ParsedKey,
+		value: TomlValue,
+		_user_data: Self::UserData,
+	) -> ModResult<()> {
 		let value = (self.parse_fn)(value)?;
 		match &self.value {
 			Some(prev_val) if prev_val.0 != value => {
-				return Err(diagnostics::multiple_definitions(&prev_val.1, key.loc(), &self.name).into());
+				return Err(diagnostics::multiple_definitions(&prev_val.1, &key_loc, &self.name).into());
 			}
 			_ => (),
 		}
-		self.value = Some((value, key.loc().clone()));
-		Ok(true)
+		self.value = Some((value, key_loc));
+		Ok(())
 	}
 }
 
@@ -237,22 +254,27 @@ macro_rules! wrap_BaseOption {
 		$vis struct $name($crate::parsing::lib::BaseOption<$inner_type>);
 
 		impl $crate::parsing::lib::ConfigOption for $name {
+			type ParsedKey = <$crate::parsing::lib::BaseOption<$inner_type> as $crate::parsing::lib::ConfigOption>::ParsedKey;
 			type UserData = <$crate::parsing::lib::BaseOption<$inner_type> as $crate::parsing::lib::ConfigOption>::UserData;
 
-			fn try_eat_with_user_data(
-				&mut self,
-				key: &$crate::parsing::lib::TomlKey,
-				value: &$crate::parsing::lib::TomlValue,
-				user_data: Self::UserData,
-			) -> $crate::GenericResult<bool> {
-				self.0.try_eat_with_user_data(key, value, user_data)
+			fn would_eat(&self, key: &$crate::parsing::lib::TomlKey) -> Option<Self::ParsedKey> {
+				self.0.would_eat(key)
 			}
-			fn try_eat(
+
+			fn eat_with_user_data(
 				&mut self,
-				key: &$crate::parsing::lib::TomlKey,
-				value: &$crate::parsing::lib::TomlValue,
-			) -> $crate::GenericResult<bool> {
-				self.0.try_eat(key, value)
+				key: Self::ParsedKey,
+				value: $crate::parsing::lib::TomlValue,
+				user_data: Self::UserData,
+			) -> $crate::GenericResult<()> {
+				self.0.eat_with_user_data(key, value, user_data)
+			}
+			fn eat(
+				&mut self,
+				key: Self::ParsedKey,
+				value: $crate::parsing::lib::TomlValue,
+			) -> $crate::GenericResult<()> {
+				self.0.eat(key, value)
 			}
 		}
 	};
@@ -262,7 +284,6 @@ pub(crate) use wrap_BaseOption;
 wrap_BaseOption!(pub BoolOption : bool);
 impl BoolOption {
 	pub fn new(name: &str) -> Self {
-		#[expect(clippy::redundant_closure_for_method_calls)]
 		Self(BaseOption::new(name, |value| value.as_bool()))
 	}
 	pub fn get_value(self) -> Option<bool> {
@@ -283,14 +304,18 @@ impl MockOption {
 	}
 }
 impl ConfigOption for MockOption {
+	type ParsedKey = ();
 	type UserData = ();
-	fn try_eat_with_user_data(
+	fn would_eat(&self, key: &TomlKey) -> Option<Self::ParsedKey> {
+		(key.name == self.name).then_some(())
+	}
+	fn eat_with_user_data(
 		&mut self,
-		key: &TomlKey,
-		_value: &TomlValue,
+		_key: Self::ParsedKey,
+		_value: TomlValue,
 		_user_data: Self::UserData,
-	) -> ModResult<bool> {
-		Ok(key.name == self.name)
+	) -> ModResult<()> {
+		Ok(())
 	}
 }
 
@@ -405,11 +430,11 @@ pub struct ArrayOption<V> {
 	name: String,
 	// value: Option<(_, key location, value location)>
 	value: Option<(Vec<V>, Location, Location)>,
-	parse_entry_fn: fn(&TomlValue) -> ModResult<V>,
+	parse_entry_fn: fn(TomlValue) -> ModResult<V>,
 	mergable: bool,
 }
 impl<V> ArrayOption<V> {
-	pub fn new(name: &str, mergable: bool, parse_entry_fn: fn(&TomlValue) -> ModResult<V>) -> Self {
+	pub fn new(name: &str, mergable: bool, parse_entry_fn: fn(TomlValue) -> ModResult<V>) -> Self {
 		Self {
 			name: name.to_string(),
 			value: None,
@@ -425,55 +450,60 @@ impl<V> ArrayOption<V> {
 	}
 }
 impl<V> ConfigOption for ArrayOption<V> {
+	type ParsedKey = Location;
 	type UserData = ();
 
-	fn try_eat_with_user_data(
+	fn would_eat(&self, key: &TomlKey) -> Option<Self::ParsedKey> {
+		(key.name == self.name).then(|| key.loc().clone())
+	}
+	fn eat_with_user_data(
 		&mut self,
-		key: &TomlKey,
-		value: &TomlValue,
+		key_loc: Self::ParsedKey,
+		value: TomlValue,
 		_user_data: Self::UserData,
-	) -> ModResult<bool> {
-		if key.name != self.name {
-			return Ok(false);
-		}
-		let array = value.as_array()?;
+	) -> ModResult<()> {
+		let value_loc = value.loc().clone();
+		let array = value.into_array()?;
 
 		match &self.value {
 			Some((_, prev_loc, _)) if !self.mergable => {
-				return Err(diagnostics::multiple_definitions(key.loc(), prev_loc, &self.name).into());
+				return Err(diagnostics::multiple_definitions(&key_loc, prev_loc, &self.name).into());
 			}
 			_ => (),
 		}
 		let (values, _, _) = self
 			.value
-			.get_or_insert_with(|| (Vec::new(), key.loc().clone(), value.loc().clone()));
+			.get_or_insert_with(|| (Vec::new(), key_loc, value_loc));
 
 		for inner_value in array {
-			values.push((self.parse_entry_fn)(&inner_value)?);
+			values.push((self.parse_entry_fn)(inner_value)?);
 		}
 
-		Ok(true)
+		Ok(())
 	}
 }
 
 macro_rules! parse_table {
-	($table:expr => [$($opt:expr),*], docs-section: $docs_section:expr $(,)?) => {'blk: {
-		use $crate::parsing::lib::*;
-		for (key, value) in $table.iter() {
-			let mut eaten = false;
-			$(
-				let wants_to_eat = match $opt.try_eat(&key, &value) {
-					Ok(val) => val,
-					Err(err) => break 'blk Err(err),
-				};
-				if !eaten && wants_to_eat {
-					eaten = true;
-				} else if eaten && wants_to_eat {
-					panic!("multiple config options want to eat the same key");
-				}
-			)*
-			if !eaten {
-				break 'blk Result::Err(diagnostics::unknown_option(&key, $docs_section).into());
+	($table:expr => [$($opt:expr $(; $data:expr)?),*], docs-section: $docs_section:expr $(,)?) => { 'ret: {
+		for (key, value) in $table.into_iter() {
+			let result = 'inner_blk: {
+				$(
+					#[allow(clippy::allow_attributes, unused_imports)]
+					use $crate::parsing::lib::ConfigOption as _;
+					if let Some(parsed_key) = $opt.would_eat(&key) {
+						#[allow(clippy::allow_attributes, unused_mut, unused_assignments)]
+						let mut user_data = std::default::Default::default();
+						$( user_data = $data; )?
+
+						break 'inner_blk $opt.eat_with_user_data(parsed_key, value, user_data);
+					}
+				)*
+				std::result::Result::Err(
+					$crate::parsing::lib::diagnostics::unknown_option(&key, $docs_section).into()
+				)
+			};
+			if result.is_err() {
+				break 'ret result;
 			}
 		}
 		Ok(())

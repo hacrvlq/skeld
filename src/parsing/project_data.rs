@@ -33,20 +33,21 @@ impl<'a, 'b> ProjectDataOption<'a, 'b> {
 	}
 }
 impl parse_lib::ConfigOption for ProjectDataOption<'_, '_> {
+	type ParsedKey = ();
 	type UserData = ();
 
-	fn try_eat_with_user_data(
+	fn would_eat(&self, key: &TomlKey) -> Option<Self::ParsedKey> {
+		(key.name() == self.name).then_some(())
+	}
+	fn eat_with_user_data(
 		&mut self,
-		key: &TomlKey,
-		value: &TomlValue,
+		_key: Self::ParsedKey,
+		value: TomlValue,
 		_user_data: Self::UserData,
-	) -> ModResult<bool> {
-		if key.name() != self.name {
-			return Ok(false);
-		}
-		let table = value.as_table()?;
-		self.value.parse_table(&table, self.ctx)?;
-		Ok(true)
+	) -> ModResult<()> {
+		let table = value.into_table()?;
+		self.value.parse_table(table, self.ctx)?;
+		Ok(())
 	}
 }
 
@@ -123,13 +124,13 @@ impl RawProjectData {
 		}
 		self.parsed_files.push(path.to_path_buf());
 
-		let mut outlivers = (None, None);
+		let mut outlivers = None;
 		let parsed_contents = parse_lib::parse_toml_file(path, ctx.file_database, &mut outlivers)?;
 
-		self.parse_table(&parsed_contents, ctx)?;
+		self.parse_table(parsed_contents, ctx)?;
 		Ok(())
 	}
-	fn parse_table(&mut self, table: &TomlTable, ctx: &mut ParseContext) -> ModResult<()> {
+	fn parse_table(&mut self, table: TomlTable, ctx: &mut ParseContext) -> ModResult<()> {
 		let mut include_option = ArrayOption::new("include", false, |raw_value| {
 			let value = raw_value.as_str()?;
 			Self::canonicalize_include_path(value)
@@ -230,36 +231,37 @@ impl VirtualFSOption {
 	}
 }
 impl parse_lib::ConfigOption for VirtualFSOption {
+	type ParsedKey = (VirtualFSEntryType, TomlKey<'static>);
 	type UserData = ();
 
-	fn try_eat_with_user_data(
-		&mut self,
-		key: &TomlKey,
-		value: &TomlValue,
-		_user_data: Self::UserData,
-	) -> ModResult<bool> {
-		let fs_entry_type;
-		if key.name() == "whitelist-dev" {
-			fs_entry_type = VirtualFSEntryType::AllowDev;
-		} else if key.name() == "whitelist-rw" {
-			fs_entry_type = VirtualFSEntryType::ReadWrite;
-		} else if key.name() == "whitelist-ro" {
-			fs_entry_type = VirtualFSEntryType::ReadOnly;
-		} else if key.name() == "whitelist-ln" {
-			fs_entry_type = VirtualFSEntryType::Symlink;
-		} else if key.name() == "add-tmpfs" {
-			fs_entry_type = VirtualFSEntryType::Tmpfs;
-		} else {
-			return Ok(false);
-		}
+	fn would_eat(&self, key: &TomlKey) -> Option<Self::ParsedKey> {
+		let fs_entry_type = match key.name() {
+			"whitelist-dev" => VirtualFSEntryType::AllowDev,
+			"whitelist-rw" => VirtualFSEntryType::ReadWrite,
+			"whitelist-ro" => VirtualFSEntryType::ReadOnly,
+			"whitelist-ln" => VirtualFSEntryType::Symlink,
+			"add-tmpfs" => VirtualFSEntryType::Tmpfs,
+			_ => return None,
+		};
 
+		let owned_key = TomlKey::new_owned(key.name().to_owned(), key.loc().clone());
+		Some((fs_entry_type, owned_key))
+	}
+	fn eat_with_user_data(
+		&mut self,
+		(fs_entry_type, key): (VirtualFSEntryType, TomlKey),
+		value: TomlValue,
+		_user_data: Self::UserData,
+	) -> ModResult<()> {
 		let mut patharray_option = ArrayOption::new(key.name(), false, |raw_value| {
 			let value = raw_value.as_str()?;
 			let parsed_value = canonicalize_path(value)
 				.map_err(|err| diagnostics::failed_canonicalization(raw_value.loc(), &err))?;
 			Ok((parsed_value, raw_value.loc().clone()))
 		});
-		patharray_option.try_eat(key, value)?;
+		let array_parsed_key = patharray_option.would_eat(&key).unwrap();
+		patharray_option.eat(array_parsed_key, value)?;
+
 		for (path, loc) in patharray_option.get_value().unwrap_or_default() {
 			match self.tree.add_path(path, fs_entry_type, loc) {
 				Ok(()) => (),
@@ -291,7 +293,7 @@ impl parse_lib::ConfigOption for VirtualFSOption {
 			}
 		}
 
-		Ok(true)
+		Ok(())
 	}
 }
 
@@ -335,21 +337,23 @@ impl EditorCommandOption {
 	}
 }
 impl parse_lib::ConfigOption for EditorCommandOption {
+	type ParsedKey = parse_lib::Location;
 	type UserData = ();
 
-	fn try_eat_with_user_data(
+	fn would_eat(&self, key: &TomlKey) -> Option<Self::ParsedKey> {
+		(key.name() == "editor").then(|| key.loc().clone())
+	}
+
+	fn eat_with_user_data(
 		&mut self,
-		key: &TomlKey,
-		value: &TomlValue,
+		key_loc: Self::ParsedKey,
+		value: TomlValue,
 		_user_data: Self::UserData,
-	) -> ModResult<bool> {
-		if key.name() != "editor" {
-			return Ok(false);
-		}
+	) -> ModResult<()> {
 		if let Some((_, prev_loc)) = &self.value {
-			return Err(diagnostics::multiple_definitions(key.loc(), prev_loc, "editor").into());
+			return Err(diagnostics::multiple_definitions(&key_loc, prev_loc, "editor").into());
 		}
-		let table = value.as_table()?;
+		let table = value.into_table()?;
 
 		let mut cmd = ArrayOption::new("cmd", false, |raw_value| {
 			let value = raw_value.as_str()?;
@@ -359,15 +363,15 @@ impl parse_lib::ConfigOption for EditorCommandOption {
 
 		let docs_section = "PROJECT DATA FORMAT";
 		parse_lib::parse_table!(
-			&table => [cmd, detach],
+			table => [cmd, detach],
 			docs-section: docs_section,
 		)?;
 		let cmd = cmd
 			.get_value_with_loc()
-			.ok_or_else(|| diagnostics::missing_option(key.loc(), "cmd", docs_section))?;
+			.ok_or_else(|| diagnostics::missing_option(&key_loc, "cmd", docs_section))?;
 		let detach = detach
 			.get_value()
-			.ok_or_else(|| diagnostics::missing_option(key.loc(), "detach", docs_section))?;
+			.ok_or_else(|| diagnostics::missing_option(&key_loc, "detach", docs_section))?;
 
 		let mut cmd_iter = cmd.0.into_iter();
 		let program = cmd_iter.next().ok_or_else(|| {
@@ -388,8 +392,8 @@ impl parse_lib::ConfigOption for EditorCommandOption {
 			args,
 			detach,
 		};
-		self.value = Some((editor_cmd, key.loc().clone()));
-		Ok(true)
+		self.value = Some((editor_cmd, key_loc));
+		Ok(())
 	}
 }
 

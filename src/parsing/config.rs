@@ -46,7 +46,7 @@ pub fn parse_config_file(
 	path: impl AsRef<Path>,
 	ctx: &mut ParseContext,
 ) -> ModResult<GlobalConfig> {
-	let mut outlivers = (None, None);
+	let mut outlivers = None;
 	let parsed_contents =
 		parse_lib::parse_toml_file(path.as_ref(), ctx.file_database, &mut outlivers)?;
 
@@ -57,7 +57,7 @@ pub fn parse_config_file(
 	let mut banner = StringOption::new("banner");
 	let mut disable_help_text = BoolOption::new("disable-help");
 	parse_lib::parse_table!(
-		&parsed_contents => [
+		parsed_contents => [
 			global_project_data,
 			commands,
 			colorscheme,
@@ -77,8 +77,9 @@ pub fn parse_config_file(
 		disable_help_text: disable_help_text.get_value().unwrap_or_default(),
 	})
 }
-fn parse_command_data(value: &TomlValue) -> ModResult<CommandData> {
-	let table = value.as_table()?;
+fn parse_command_data(value: TomlValue) -> ModResult<CommandData> {
+	let value_loc = value.loc().clone();
+	let table = value.into_table()?;
 
 	let mut name = StringOption::new("name");
 	let mut keybind = StringOption::new("keybind");
@@ -91,18 +92,18 @@ fn parse_command_data(value: &TomlValue) -> ModResult<CommandData> {
 
 	let docs_section = "CONFIGURATION";
 	parse_lib::parse_table!(
-		&table => [name, keybind, command, detach],
+		table => [name, keybind, command, detach],
 		docs-section: docs_section,
 	)?;
 	let name = name
 		.get_value()
-		.ok_or_else(|| diagnostics::missing_option(value.loc(), "name", docs_section))?;
+		.ok_or_else(|| diagnostics::missing_option(&value_loc, "name", docs_section))?;
 	let keybind = keybind
 		.get_value()
-		.ok_or_else(|| diagnostics::missing_option(value.loc(), "keybind", docs_section))?;
+		.ok_or_else(|| diagnostics::missing_option(&value_loc, "keybind", docs_section))?;
 	let command = command
 		.get_value()
-		.ok_or_else(|| diagnostics::missing_option(value.loc(), "command", docs_section))?;
+		.ok_or_else(|| diagnostics::missing_option(&value_loc, "command", docs_section))?;
 	// detach' is useless if 'command' is empty,
 	// as skeld will quit immediately in this case
 	let detach = if command.is_empty() {
@@ -110,7 +111,7 @@ fn parse_command_data(value: &TomlValue) -> ModResult<CommandData> {
 	} else {
 		detach
 			.get_value()
-			.ok_or_else(|| diagnostics::missing_option(value.loc(), "detach", docs_section))?
+			.ok_or_else(|| diagnostics::missing_option(&value_loc, "detach", docs_section))?
 	};
 
 	Ok(CommandData {
@@ -129,8 +130,8 @@ impl ColorschemeOption {
 		self.0.get_value()
 	}
 }
-fn parse_colorscheme(value: &TomlValue) -> ModResult<tui::Colorscheme> {
-	let table = value.as_table()?;
+fn parse_colorscheme(value: TomlValue) -> ModResult<tui::Colorscheme> {
+	let table = value.into_table()?;
 
 	let create_color_option = |name| BaseOption::<tui::Color>::new(name, parse_tui_color);
 	let mut normal = create_color_option("normal");
@@ -160,7 +161,7 @@ fn parse_colorscheme(value: &TomlValue) -> ModResult<tui::Colorscheme> {
 	handle_color_option!(background);
 	Ok(resulting_colorscheme)
 }
-fn parse_tui_color(value: &TomlValue) -> ModResult<tui::Color> {
+fn parse_tui_color(value: TomlValue) -> ModResult<tui::Color> {
 	if let Ok(str) = value.as_str() {
 		parse_hex_color(str).ok_or_else(|| {
 			let label = value
@@ -189,7 +190,7 @@ fn parse_tui_color(value: &TomlValue) -> ModResult<tui::Color> {
 	} else {
 		Err(
 			diagnostics::wrong_type(
-				value,
+				&value,
 				&[
 					parse_lib::TomlInnerValue::String(Default::default()),
 					parse_lib::TomlInnerValue::Integer(Default::default()),
