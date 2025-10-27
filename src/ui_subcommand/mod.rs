@@ -1,104 +1,64 @@
 pub mod tui;
 
-use std::{
-	collections::HashSet,
-	process::{Command as OsCommand, ExitCode},
-};
+use std::{collections::HashSet, process::ExitCode};
 
-use self::tui::{TuiData, UserSelection};
-use crate::{
-	GenericResult,
-	parsing::{ParseContext, RawProjectData},
-	project::ProjectDataFile,
-};
+use self::tui::{ProjectButton, ProjectsSection, TuiData, UiError};
+use crate::{GenericResult, parsing::ParseContext};
 
 pub fn run(
 	parse_ctx: &mut ParseContext,
 	global_config: crate::GlobalConfig,
 ) -> GenericResult<ExitCode> {
-	let commands = global_config.commands;
 	let bookmarks = parse_ctx.get_bookmarks()?;
 	let projects = parse_ctx.get_projects()?;
 
 	// stores all keybinds that are positive numbers
 	// This is used to find the first available numeric keybind for projects that
 	// don't provide a keybinding themselves.
-	let mut numeric_keybinds = bookmarks
-		.iter()
-		.chain(projects.iter())
+	let mut numeric_keybinds = Iterator::chain(bookmarks.iter(), projects.iter())
 		.filter_map(|data| data.keybind.clone())
-		.chain(commands.iter().map(|data| data.keybind.clone()))
 		.filter_map(parse_str_as_num)
 		.collect::<HashSet<_>>();
 
-	let commands = commands.into_iter().map(|data| tui::Button {
-		keybind: data.keybind,
-		text: data.name,
-		action: Action::Run(data.command),
-	});
-
-	let projects_sections = [
-		("Bookmarks", parse_ctx.get_bookmarks()?),
-		("Projects", parse_ctx.get_projects()?),
-	]
-	.map(|(heading, projects)| tui::Section {
-		heading: heading.to_string(),
-		buttons: projects
-			.into_iter()
-			.map(|project| tui::Button {
+	let projects_sections = [("Bookmarks", bookmarks), ("Projects", projects)]
+		.into_iter()
+		.filter(|section| !section.1.is_empty())
+		.map(|(heading, projects)| {
+			let buttons = projects.into_iter().map(|project| ProjectButton {
 				keybind: project.keybind.unwrap_or_else(|| {
 					let first_unused_num = (1..).find(|i| numeric_keybinds.insert(*i)).unwrap();
 					first_unused_num.to_string()
 				}),
-				text: project.name,
-				action: Action::OpenProject(project.project_data_file),
-			})
-			.collect::<Vec<_>>(),
-	});
+				project_name: project.name,
+				project: project.project_data_file,
+			});
 
-	let sections = [
-		vec![tui::Section {
-			heading: "Commands".to_string(),
-			buttons: commands.collect(),
-		}],
-		projects_sections.to_vec(),
-	]
-	.concat()
-	.into_iter()
-	.filter(|section| !section.buttons.is_empty())
-	.map(|section| {
-		let (mut buttons_numerical, buttons_rest): (Vec<_>, Vec<_>) = section
-			.buttons
-			.into_iter()
-			.partition(|button| parse_str_as_num(&button.keybind).is_some());
-		buttons_numerical.sort_by_key(|button| parse_str_as_num(&button.keybind).unwrap());
-		#[expect(clippy::tuple_array_conversions)]
-		let buttons = [buttons_rest, buttons_numerical].concat();
+			let (mut buttons_numerical, buttons_rest): (Vec<_>, Vec<_>) =
+				buttons.partition(|button| parse_str_as_num(&button.keybind).is_some());
+			buttons_numerical.sort_by_key(|button| parse_str_as_num(&button.keybind).unwrap());
+			#[expect(clippy::tuple_array_conversions)]
+			let buttons = [buttons_rest, buttons_numerical].concat();
 
-		tui::Section { buttons, ..section }
-	})
-	.collect::<Vec<_>>();
-
-	let help_text = if global_config.disable_help_text {
-		"".to_string()
-	} else {
-		"Use J/K/Enter/Mouse to navigate".to_string()
-	};
+			ProjectsSection {
+				heading: heading.to_string(),
+				buttons,
+			}
+		});
 
 	let tui_data = TuiData {
+		colorscheme: global_config.colorscheme,
 		banner: global_config.banner.clone(),
-		colorscheme: global_config.colorscheme.clone(),
-		sections,
-		help_text,
+		sections: projects_sections.collect(),
+		// TODO: add a config option for this
+		project_button_width: 40,
 	};
 
-	let action = tui::run(&tui_data).map_err(|err| err.to_string())?;
-	match action {
-		UserSelection::ControlC => Ok(ExitCode::SUCCESS),
-		UserSelection::Button(action) => action.execute(global_config.global_project_data, parse_ctx),
-	}
+	tui::run(&tui_data, global_config.global_project_data, parse_ctx).map_err(|err| match err {
+		UiError::NoTty => "The skeld ui can only be used in a tty.".into(),
+		UiError::IoError(err) => format!("An IO error occurred while rendering the tui: {err}").into(),
+		UiError::Other(err) => err,
+	})
 }
-
 // parse str as a positive number, disallowing a leading '+'
 fn parse_str_as_num(str: impl AsRef<str>) -> Option<u64> {
 	let str = str.as_ref();
@@ -106,52 +66,5 @@ fn parse_str_as_num(str: impl AsRef<str>) -> Option<u64> {
 		None
 	} else {
 		str.parse::<u64>().ok()
-	}
-}
-
-#[derive(Clone, Debug)]
-enum Action {
-	Run(Command),
-	OpenProject(ProjectDataFile),
-}
-impl Action {
-	fn execute(self, global_data: RawProjectData, ctx: &mut ParseContext) -> GenericResult<ExitCode> {
-		match self {
-			Action::Run(cmd) => cmd.run(),
-			Action::OpenProject(project) => project.load(global_data, ctx)?.open().map_err(Into::into),
-		}
-	}
-}
-
-#[derive(Clone, Debug)]
-pub struct CommandData {
-	pub name: String,
-	pub keybind: String,
-	pub command: Command,
-}
-#[derive(Clone, Debug)]
-pub struct Command {
-	pub command: Vec<String>,
-	pub detach: bool,
-}
-impl Command {
-	fn run(self) -> GenericResult<ExitCode> {
-		if self.command.is_empty() {
-			return Ok(ExitCode::SUCCESS);
-		}
-		let cmd = self.command[0].clone();
-		let cmd_args = self.command.into_iter().skip(1);
-
-		if self.detach {
-			crate::command::detach_from_tty()?;
-		}
-
-		let mut child = OsCommand::new(&cmd)
-			.args(cmd_args)
-			.spawn()
-			.map_err(|err| format!("Failed to execute command `{cmd}`: {err}"))?;
-
-		let exit_status = child.wait().unwrap();
-		Ok(crate::command::forward_child_exit_status(exit_status))
 	}
 }

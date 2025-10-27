@@ -2,17 +2,10 @@ use std::path::Path;
 
 use super::{
 	ModResult, ParseContext,
-	lib::{
-		self as parse_lib, ArrayOption, BaseOption, BoolOption, Diagnostic, StringOption, TomlValue,
-		diagnostics,
-	},
+	lib::{self as parse_lib, BaseOption, Diagnostic, StringOption, TomlValue, diagnostics},
 	project_data::{self, ProjectDataOption},
-	string_interpolation,
 };
-use crate::{
-	GlobalConfig,
-	ui_subcommand::{Command, CommandData, tui},
-};
+use crate::{GlobalConfig, ui_subcommand::tui};
 
 // generated with FIGlet using the larry3d font
 const DEFAULT_BANNER: &str = r"
@@ -29,15 +22,13 @@ const DEFAULT_COLORSCHEME: tui::Colorscheme = tui::Colorscheme {
 	banner: tui::Color::Reset,
 	heading: tui::Color::Reset,
 	keybind: tui::Color::Reset,
-	button_label: tui::Color::Reset,
+	project_name: tui::Color::Reset,
 	background: tui::Color::Reset,
 };
 pub fn default_config() -> GlobalConfig {
 	GlobalConfig {
 		banner: DEFAULT_BANNER.to_string(),
 		colorscheme: DEFAULT_COLORSCHEME,
-		disable_help_text: false,
-		commands: Vec::new(),
 		global_project_data: project_data::RawProjectData::empty(),
 	}
 }
@@ -52,72 +43,23 @@ pub fn parse_config_file(
 
 	let mut global_project_data =
 		ProjectDataOption::new("project", project_data::RawProjectData::empty(), ctx);
-	let mut commands = ArrayOption::new("commands", false, parse_command_data);
 	let mut colorscheme = ColorschemeOption::new();
 	let mut banner = StringOption::new("banner");
-	let mut disable_help_text = BoolOption::new("disable-help");
 	parse_lib::parse_table!(
 		parsed_contents => [
 			global_project_data,
-			commands,
 			colorscheme,
-			banner,
-			disable_help_text
+			banner
 		],
 		docs-section: "CONFIGURATION",
 	)?;
 
 	Ok(GlobalConfig {
-		commands: commands.get_value().unwrap_or_default(),
 		global_project_data: global_project_data.get_value(),
 		colorscheme: colorscheme.get_value()?.unwrap_or(DEFAULT_COLORSCHEME),
 		banner: banner
 			.get_value()?
 			.unwrap_or_else(|| DEFAULT_BANNER.to_string()),
-		disable_help_text: disable_help_text.get_value()?.unwrap_or_default(),
-	})
-}
-fn parse_command_data(value: TomlValue) -> ModResult<CommandData> {
-	let value_loc = value.loc().clone();
-	let table = value.into_table()?;
-
-	let mut name = StringOption::new("name");
-	let mut keybind = StringOption::new("keybind");
-	let mut command = ArrayOption::new("command", false, |raw_value| {
-		let value = raw_value.as_str()?;
-		string_interpolation::resolve_placeholders(value)
-			.map_err(|err| diagnostics::failed_canonicalization(raw_value.loc(), &err).into())
-	});
-	let mut detach = BoolOption::new("detach");
-
-	let docs_section = "CONFIGURATION";
-	parse_lib::parse_table!(
-		table => [name, keybind, command, detach],
-		docs-section: docs_section,
-	)?;
-	let name = name
-		.get_value()?
-		.ok_or_else(|| diagnostics::missing_option(&value_loc, "name", docs_section))?;
-	let keybind = keybind
-		.get_value()?
-		.ok_or_else(|| diagnostics::missing_option(&value_loc, "keybind", docs_section))?;
-	let command = command
-		.get_value()
-		.ok_or_else(|| diagnostics::missing_option(&value_loc, "command", docs_section))?;
-	// detach' is useless if 'command' is empty,
-	// as skeld will quit immediately in this case
-	let detach = if command.is_empty() {
-		detach.get_value()?.unwrap_or(false)
-	} else {
-		detach
-			.get_value()?
-			.ok_or_else(|| diagnostics::missing_option(&value_loc, "detach", docs_section))?
-	};
-
-	Ok(CommandData {
-		name,
-		keybind,
-		command: Command { command, detach },
 	})
 }
 
@@ -138,10 +80,10 @@ fn parse_colorscheme(value: TomlValue) -> ModResult<tui::Colorscheme> {
 	let mut banner = create_color_option("banner");
 	let mut heading = create_color_option("heading");
 	let mut keybind = create_color_option("keybind");
-	let mut button_label = create_color_option("label");
+	let mut project_name = create_color_option("project-name");
 	let mut background = create_color_option("background");
 	parse_lib::parse_table!(
-		table => [normal, banner, heading, keybind, button_label, background],
+		table => [normal, banner, heading, keybind, project_name, background],
 		docs-section: "CONFIGURATION",
 	)?;
 
@@ -157,7 +99,7 @@ fn parse_colorscheme(value: TomlValue) -> ModResult<tui::Colorscheme> {
 	handle_color_option!(banner);
 	handle_color_option!(heading);
 	handle_color_option!(keybind);
-	handle_color_option!(button_label);
+	handle_color_option!(project_name);
 	handle_color_option!(background);
 	Ok(resulting_colorscheme)
 }

@@ -111,6 +111,7 @@ impl ParseContext<'_> {
 		let mut outlivers = None;
 		let parsed_contents = parse_lib::parse_toml_file(path, self.file_database, &mut outlivers)?;
 
+		// TODO: verify that 'name' and 'keybind' only contain ASCII non-control chars
 		let mut name = StringOption::new("name");
 		let mut keybind = StringOption::new("keybind");
 		// mock the project data option, so there is not an "unknown option" error
