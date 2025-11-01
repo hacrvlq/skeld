@@ -111,9 +111,35 @@ impl ParseContext<'_> {
 		let mut outlivers = None;
 		let parsed_contents = parse_lib::parse_toml_file(path, self.file_database, &mut outlivers)?;
 
-		// TODO: verify that 'name' and 'keybind' only contain ASCII non-control chars
-		let mut name = StringOption::new("name");
-		let mut keybind = StringOption::new("keybind");
+		let assure_printable_ascii = |str: &str, option_name: &str| {
+			if !str.is_ascii() {
+				return Err(parse_lib::CanonicalizationError {
+					main_message: format!("invalid {option_name}"),
+					labels: vec![parse_lib::CanonicalizationLabel::primary_without_span(
+						"contains non-ASCII characters",
+					)],
+					notes: Vec::new(),
+				});
+			}
+
+			if str.chars().any(|ch| ch.is_ascii_control()) {
+				return Err(parse_lib::CanonicalizationError {
+					main_message: format!("invalid {option_name}"),
+					labels: vec![parse_lib::CanonicalizationLabel::primary_without_span(
+						"contains ASCII control characters",
+					)],
+					notes: Vec::new(),
+				});
+			}
+
+			Ok(str.to_string())
+		};
+		let mut name = StringOption::new_with_canonicalization("name", |str| {
+			assure_printable_ascii(str, "project name")
+		});
+		let mut keybind = StringOption::new_with_canonicalization("keybind", |str| {
+			assure_printable_ascii(str, "keybind")
+		});
 		// mock the project data option, so there is not an "unknown option" error
 		let mut project_data = MockOption::new("project");
 
@@ -127,7 +153,7 @@ impl ParseContext<'_> {
 			Some(name) => name,
 			None => {
 				let file_stem = path.file_stem().unwrap();
-				file_stem
+				let name = file_stem
 					.to_str()
 					.ok_or_else(|| {
 						format!(
@@ -141,7 +167,41 @@ impl ParseContext<'_> {
 							man_cmd = crate::error::get_manpage_cmd(docs_section),
 						)
 					})?
-					.to_string()
+					.to_string();
+
+				if !name.is_ascii() {
+					return Err(
+						format!(
+							concat!(
+								"Cannot use the filename of `{}` as project name,\n",
+								"because it contains a non-ASCII characters.\n",
+								"  NOTE: use the config option 'name' to manually specify a name\n",
+								"  (run `{man_cmd}` for more information)",
+							),
+							path.display(),
+							man_cmd = crate::error::get_manpage_cmd(docs_section),
+						)
+						.into(),
+					);
+				}
+
+				if name.chars().any(|ch| ch.is_ascii_control()) {
+					return Err(
+						format!(
+							concat!(
+								"Cannot use the filename of `{}` as project name,\n",
+								"because it contains ASCII control characters.\n",
+								"  NOTE: use the config option 'name' to manually specify a name\n",
+								"  (run `{man_cmd}` for more information)",
+							),
+							path.display(),
+							man_cmd = crate::error::get_manpage_cmd(docs_section),
+						)
+						.into(),
+					);
+				}
+
+				name
 			}
 		};
 
