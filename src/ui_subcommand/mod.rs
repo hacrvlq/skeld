@@ -49,8 +49,7 @@ pub fn run(
 		colorscheme: global_config.colorscheme,
 		banner: global_config.banner.clone(),
 		sections: projects_sections.collect(),
-		// TODO: add a config option for this
-		project_button_width: 40,
+		project_button_width: global_config.project_button_width,
 	};
 
 	tui::run(&tui_data, global_config.global_project_data, parse_ctx).map_err(|err| match err {

@@ -75,6 +75,7 @@ fn try_main(file_database: &mut parsing::FileDatabase) -> GenericResult<ExitCode
 
 struct GlobalConfig {
 	banner: String,
+	project_button_width: u32,
 	colorscheme: tui::Colorscheme,
 	global_project_data: parsing::RawProjectData,
 }

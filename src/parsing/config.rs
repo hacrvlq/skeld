@@ -2,7 +2,9 @@ use std::path::Path;
 
 use super::{
 	ModResult, ParseContext,
-	lib::{self as parse_lib, BaseOption, Diagnostic, StringOption, TomlValue, diagnostics},
+	lib::{
+		self as parse_lib, BaseOption, Diagnostic, IntegerOption, StringOption, TomlValue, diagnostics,
+	},
 	project_data::{self, ProjectDataOption},
 };
 use crate::{GlobalConfig, ui_subcommand::tui};
@@ -28,6 +30,7 @@ const DEFAULT_COLORSCHEME: tui::Colorscheme = tui::Colorscheme {
 pub fn default_config() -> GlobalConfig {
 	GlobalConfig {
 		banner: DEFAULT_BANNER.to_string(),
+		project_button_width: 40,
 		colorscheme: DEFAULT_COLORSCHEME,
 		global_project_data: project_data::RawProjectData::empty(),
 	}
@@ -45,22 +48,30 @@ pub fn parse_config_file(
 		ProjectDataOption::new("project", project_data::RawProjectData::empty(), ctx);
 	let mut colorscheme = ColorschemeOption::new();
 	let mut banner = StringOption::new("banner");
+	let mut project_button_width = IntegerOption::new("project-button-width", 0..=u16::MAX as i64);
 	parse_lib::parse_table!(
 		parsed_contents => [
 			global_project_data,
 			colorscheme,
-			banner
+			banner,
+			project_button_width
 		],
 		docs-section: "CONFIGURATION",
 	)?;
 
-	Ok(GlobalConfig {
-		global_project_data: global_project_data.get_value(),
-		colorscheme: colorscheme.get_value()?.unwrap_or(DEFAULT_COLORSCHEME),
-		banner: banner
-			.get_value()?
-			.unwrap_or_else(|| DEFAULT_BANNER.to_string()),
-	})
+	let mut config = default_config();
+	config.global_project_data = global_project_data.get_value();
+	if let Some(colorscheme) = colorscheme.get_value()? {
+		config.colorscheme = colorscheme;
+	}
+	if let Some(banner) = banner.get_value()? {
+		config.banner = banner;
+	}
+	if let Some(button_width) = project_button_width.get_value()? {
+		config.project_button_width = button_width.try_into().unwrap();
+	}
+
+	Ok(config)
 }
 
 parse_lib::wrap_BaseOption!(ColorschemeOption : tui::Colorscheme);
