@@ -2,7 +2,7 @@ use std::{
 	borrow::Cow,
 	cmp::PartialEq,
 	fs,
-	ops::Range,
+	ops::{Bound as RangeBound, Range, RangeBounds},
 	path::{Path, PathBuf},
 	rc::Rc,
 };
@@ -307,6 +307,38 @@ impl BoolOption<'_> {
 		Self(BaseOption::new(name, |value| value.as_bool()))
 	}
 	pub fn get_value(self) -> ModResult<Option<bool>> {
+		self.0.get_value()
+	}
+}
+
+wrap_BaseOption!(pub IntegerOption : i64);
+impl<'a> IntegerOption<'a> {
+	pub fn new(name: &str, valid_range: impl RangeBounds<i64> + 'a) -> Self {
+		Self(BaseOption::new(name, move |raw_value| {
+			let value = raw_value.as_int()?;
+
+			let RangeBound::Included(lower_bound) = valid_range.start_bound() else {
+				todo!()
+			};
+			let RangeBound::Included(upper_bound) = valid_range.end_bound() else {
+				todo!()
+			};
+
+			if !valid_range.contains(&value) {
+				return Err(
+					Diagnostic::new(Severity::Error)
+						.with_message("number is out of range")
+						.with_label(raw_value.loc().get_primary_label().with_message(format!(
+							"must be within the range {lower_bound} <= _ <= {upper_bound}"
+						)))
+						.into(),
+				);
+			}
+
+			Ok(value)
+		}))
+	}
+	pub fn get_value(self) -> ModResult<Option<i64>> {
 		self.0.get_value()
 	}
 }
