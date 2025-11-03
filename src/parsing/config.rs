@@ -54,7 +54,7 @@ pub fn parse_config_file(
 			global_project_data,
 			colorscheme,
 			banner,
-			project_button_width
+			project_button_width,
 		],
 		docs-section: "CONFIGURATION",
 	)?;

@@ -172,7 +172,7 @@ impl RawProjectData {
 				self.virtual_fs,
 				self.whitelist_envvars,
 				self.whitelist_all_envvars ; priority,
-				self.disable_sandbox ; priority
+				self.disable_sandbox ; priority,
 			],
 			docs-section: "PROJECT DATA FORMAT",
 		)?;

@@ -536,7 +536,7 @@ impl<V> ConfigOption for ArrayOption<V> {
 }
 
 macro_rules! parse_table {
-	($table:expr => [$($opt:expr $(; $data:expr)?),*], docs-section: $docs_section:expr $(,)?) => { 'ret: {
+	($table:expr => [$($opt:expr $(; $data:expr)?),* $(,)?], docs-section: $docs_section:expr $(,)?) => { 'ret: {
 		for (key, value) in $table.into_iter() {
 			let result = 'inner_blk: {
 				$(
