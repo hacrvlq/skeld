@@ -72,13 +72,13 @@ impl parse_lib::ConfigOption for ProjectDataOption<'_, '_> {
 // nothing if this config option has not yet been specified
 #[derive(Clone, Debug)]
 pub struct RawProjectData {
-	project_dir: PathBufOption,
-	initial_file: StringOption,
+	project_dir: PathBufOption<'static>,
+	initial_file: StringOption<'static>,
 	editor: EditorCommandOption,
 	virtual_fs: VirtualFSOption,
 	whitelist_envvars: ArrayOption<String>,
-	whitelist_all_envvars: BoolOption,
-	disable_sandbox: BoolOption,
+	whitelist_all_envvars: BoolOption<'static>,
+	disable_sandbox: BoolOption<'static>,
 
 	parsed_files: Vec<PathBuf>,
 }

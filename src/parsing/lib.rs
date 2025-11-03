@@ -220,14 +220,14 @@ pub struct Priority(pub i64);
 
 // helper config option that eats only a specific key using a specified parse function
 #[derive(Clone, derive_more::Debug)]
-pub struct BaseOption<T> {
+pub struct BaseOption<'a, T> {
 	#[debug(skip)]
-	parse_fn: Rc<dyn Fn(TomlValue) -> ModResult<T>>,
+	parse_fn: Rc<dyn Fn(TomlValue) -> ModResult<T> + 'a>,
 	name: String,
 	parsed_values: Vec<(T, Location, Priority)>,
 }
-impl<T> BaseOption<T> {
-	pub fn new(name: &str, parse_fn: impl Fn(TomlValue) -> ModResult<T> + 'static) -> Self {
+impl<'a, T> BaseOption<'a, T> {
+	pub fn new(name: &str, parse_fn: impl Fn(TomlValue) -> ModResult<T> + 'a) -> Self {
 		Self {
 			parse_fn: Rc::new(parse_fn),
 			name: name.to_string(),
@@ -248,7 +248,7 @@ impl<T> BaseOption<T> {
 		Ok(max_prio_value.map(|(value, _, _)| value))
 	}
 }
-impl<T: PartialEq> ConfigOption for BaseOption<T> {
+impl<T: PartialEq> ConfigOption for BaseOption<'_, T> {
 	type ParsedKey = Location;
 	type UserData = Priority;
 
@@ -271,11 +271,11 @@ impl<T: PartialEq> ConfigOption for BaseOption<T> {
 macro_rules! wrap_BaseOption {
 	($vis:vis $name:ident : $inner_type:ty) => {
 		#[derive(std::clone::Clone, std::fmt::Debug)]
-		$vis struct $name($crate::parsing::lib::BaseOption<$inner_type>);
+		$vis struct $name<'a>($crate::parsing::lib::BaseOption<'a, $inner_type>);
 
-		impl $crate::parsing::lib::ConfigOption for $name {
-			type ParsedKey = <$crate::parsing::lib::BaseOption<$inner_type> as $crate::parsing::lib::ConfigOption>::ParsedKey;
-			type UserData = <$crate::parsing::lib::BaseOption<$inner_type> as $crate::parsing::lib::ConfigOption>::UserData;
+		impl<'a> $crate::parsing::lib::ConfigOption for $name<'a> {
+			type ParsedKey = <$crate::parsing::lib::BaseOption<'a, $inner_type> as $crate::parsing::lib::ConfigOption>::ParsedKey;
+			type UserData = <$crate::parsing::lib::BaseOption<'a, $inner_type> as $crate::parsing::lib::ConfigOption>::UserData;
 
 			fn would_eat(&self, key: &$crate::parsing::lib::TomlKey) -> Option<Self::ParsedKey> {
 				self.0.would_eat(key)
@@ -302,7 +302,7 @@ macro_rules! wrap_BaseOption {
 pub(crate) use wrap_BaseOption;
 
 wrap_BaseOption!(pub BoolOption : bool);
-impl BoolOption {
+impl BoolOption<'_> {
 	pub fn new(name: &str) -> Self {
 		Self(BaseOption::new(name, |value| value.as_bool()))
 	}
@@ -340,10 +340,10 @@ impl ConfigOption for MockOption {
 }
 
 wrap_BaseOption!(pub PathBufOption : PathBuf);
-impl PathBufOption {
+impl<'a> PathBufOption<'a> {
 	pub fn new(
 		name: &str,
-		canonicalization: impl Fn(&str) -> Result<PathBuf, CanonicalizationError> + 'static,
+		canonicalization: impl Fn(&str) -> Result<PathBuf, CanonicalizationError> + 'a,
 	) -> Self {
 		Self(BaseOption::new(name, move |value| {
 			let raw_value = value.as_str()?;
@@ -356,13 +356,13 @@ impl PathBufOption {
 	}
 }
 wrap_BaseOption!(pub StringOption : String);
-impl StringOption {
+impl<'a> StringOption<'a> {
 	pub fn new(name: &str) -> Self {
 		Self::new_with_canonicalization(name, |str| Ok(str.to_string()))
 	}
 	pub fn new_with_canonicalization(
 		name: &str,
-		canonicalization: impl Fn(&str) -> Result<String, CanonicalizationError> + 'static,
+		canonicalization: impl Fn(&str) -> Result<String, CanonicalizationError> + 'a,
 	) -> Self {
 		Self(BaseOption::new(name, move |value| {
 			let raw_value = value.as_str()?;

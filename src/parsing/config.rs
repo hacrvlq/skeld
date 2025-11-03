@@ -122,7 +122,7 @@ fn parse_command_data(value: TomlValue) -> ModResult<CommandData> {
 }
 
 parse_lib::wrap_BaseOption!(ColorschemeOption : tui::Colorscheme);
-impl ColorschemeOption {
+impl ColorschemeOption<'_> {
 	fn new() -> Self {
 		Self(BaseOption::new("colorscheme", parse_colorscheme))
 	}
