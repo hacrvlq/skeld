@@ -7,19 +7,34 @@ use std::{
 
 use crossterm::{
 	ExecutableCommand as _, QueueableCommand as _, cursor,
-	event::{
-		self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent,
-		MouseEventKind,
-	},
+	event::{self, Event, KeyEvent, KeyEventKind, MouseButton, MouseEvent, MouseEventKind},
 	terminal,
 	tty::IsTty as _,
 };
 
 use crate::{
-	GenericError,
+	GenericError, command,
 	parsing::{ParseContext, RawProjectData},
 	project::ProjectDataFile,
 };
+
+pub use crossterm::event::{KeyCode, KeyModifiers};
+#[derive(Clone, Debug)]
+pub struct Keybind {
+	pub keys: KeySequence,
+	pub action: KeyAction,
+}
+#[derive(Clone, Debug, derive_more::From)]
+pub struct KeySequence(pub Vec<(KeyCode, KeyModifiers)>);
+#[derive(Clone, Debug)]
+pub enum KeyAction {
+	MoveDown,
+	MoveUp,
+	Choose,
+	Quit,
+	Nop,
+	LaunchProgram(command::Command),
+}
 
 pub use crossterm::style::Color;
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -34,6 +49,7 @@ pub struct Colorscheme {
 
 #[derive(Clone, Debug)]
 pub(super) struct TuiData {
+	pub(super) keybinds: Vec<Keybind>,
 	pub(super) colorscheme: Colorscheme,
 	pub(super) banner: String,
 	pub(super) sections: Vec<ProjectsSection>,
@@ -116,7 +132,7 @@ fn protected_run(
 
 		buttons_clickable_area: Vec::new(),
 		selected_button: 0,
-		acc_pressed_keys: String::new(),
+		acc_pressed_keys: Vec::new(),
 		prev_mouse_press: None,
 	};
 
@@ -142,7 +158,7 @@ struct UIState<'a, 'b, 'c> {
 	selected_button: usize,
 	// accumulated pressed keys
 	// (never cleared, only the end is checked for a match)
-	acc_pressed_keys: String,
+	acc_pressed_keys: Vec<(KeyCode, KeyModifiers)>,
 	// prev_mouse_press: Option<(pressed button, _)>
 	prev_mouse_press: Option<(usize, time::Instant)>,
 }
@@ -169,49 +185,101 @@ impl UIState<'_, '_, '_> {
 		keycode: KeyCode,
 		modifiers: KeyModifiers,
 	) -> Result<Option<ExitCode>, UiError> {
-		if let KeyCode::Char(ch) = keycode {
-			self.acc_pressed_keys.push(ch);
-		}
+		self.acc_pressed_keys.push((keycode, modifiers));
 
-		if keycode == KeyCode::Char('c') && modifiers == KeyModifiers::CONTROL {
-			return Ok(Some(ExitCode::SUCCESS));
-		}
+		let matching_keybind = self
+			.tui_data
+			.keybinds
+			.iter()
+			.filter(|keybind| self.is_key_sequence_pressed(&keybind.keys))
+			// NOTE: If multiple elements are equal to the maximum, 'max_by_key'
+			//       returns the last one. This allows keybinds defined later to
+			//       override those defined earlier.
+			.max_by_key(|keybind| keybind.keys.0.len());
+		if let Some(keybind) = matching_keybind {
+			match &keybind.action {
+				KeyAction::Choose => {
+					let selected_project = self
+						.tui_data
+						.buttons()
+						.nth(self.selected_button)
+						.map(|button| button.project.clone());
 
-		match keycode {
-			KeyCode::Enter => {
-				let selected_project = self
-					.tui_data
-					.buttons()
-					.nth(self.selected_button)
-					.map(|button| button.project.clone());
-
-				if let Some(selected_project) = selected_project {
-					return self.handle_selected_project(selected_project).map(Some);
+					if let Some(selected_project) = selected_project {
+						return self.handle_selected_project(selected_project).map(Some);
+					}
+				}
+				KeyAction::MoveUp => {
+					self.selected_button = self.selected_button.saturating_sub(1);
+				}
+				KeyAction::MoveDown => {
+					let max_idx = self.tui_data.buttons().count().saturating_sub(1);
+					self.selected_button = (self.selected_button + 1).min(max_idx);
+				}
+				KeyAction::Quit => {
+					return Ok(Some(ExitCode::SUCCESS));
+				}
+				KeyAction::Nop => (),
+				KeyAction::LaunchProgram(command) => {
+					let exit_code = command.run().map_err(GenericError::from)?;
+					return Ok(Some(exit_code));
 				}
 			}
-			KeyCode::Char('j') | KeyCode::Down => {
-				let max_idx = self.tui_data.buttons().count().saturating_sub(1);
-				self.selected_button = (self.selected_button + 1).min(max_idx);
-			}
-			KeyCode::Char('k') | KeyCode::Up => {
-				self.selected_button = self.selected_button.saturating_sub(1);
-			}
-			_ => (),
 		}
 
-		if let Some(selected_project) = self.check_for_keybind_match() {
-			return self.handle_selected_project(selected_project).map(Some);
+		let matching_project_button = self
+			.tui_data
+			.buttons()
+			.filter(|button| {
+				let button_key_seq = button
+					.keybind
+					.chars()
+					.map(|ch| (KeyCode::Char(ch), KeyModifiers::NONE))
+					.collect::<Vec<_>>();
+				self.is_key_sequence_pressed(&KeySequence(button_key_seq))
+			})
+			.max_by_key(|button| button.keybind.len());
+		if let Some(matching_button) = matching_project_button {
+			return self
+				.handle_selected_project(matching_button.project.clone())
+				.map(Some);
 		}
 
 		Ok(None)
 	}
-	fn check_for_keybind_match(&self) -> Option<ProjectDataFile> {
-		let pressed_button = self
-			.tui_data
-			.buttons()
-			.filter(|button| self.acc_pressed_keys.ends_with(&button.keybind))
-			.max_by_key(|button| button.keybind.len());
-		pressed_button.map(|button| button.project.clone())
+	fn is_key_sequence_pressed(&self, key_seq: &KeySequence) -> bool {
+		let normalize_keypress = |(mut keycode, mut modifiers): (KeyCode, KeyModifiers)| {
+			if modifiers.contains(KeyModifiers::SHIFT)
+				&& let KeyCode::Char(ref mut ch) = keycode
+			{
+				ch.make_ascii_uppercase();
+				modifiers.remove(KeyModifiers::SHIFT);
+			}
+
+			if modifiers.contains(KeyModifiers::SHIFT) && keycode == KeyCode::Tab {
+				keycode = KeyCode::BackTab;
+				modifiers.remove(KeyModifiers::SHIFT);
+			}
+
+			let keycode = match keycode {
+				KeyCode::Char('\0') => KeyCode::Null,
+				KeyCode::Char('\x08') => KeyCode::Backspace,
+				KeyCode::Char('\t') => KeyCode::Tab,
+				KeyCode::Char('\n') => KeyCode::Enter,
+				KeyCode::Char('\x1B') => KeyCode::Esc,
+				KeyCode::Char('\x7F') => KeyCode::Delete,
+				rest => rest,
+			};
+
+			(keycode, modifiers)
+		};
+
+		let mut pressed_keys_iter = self.acc_pressed_keys.iter().rev();
+		key_seq.0.iter().rev().all(|key| {
+			pressed_keys_iter
+				.next()
+				.is_some_and(|pressed_key| normalize_keypress(*pressed_key) == normalize_keypress(*key))
+		})
 	}
 
 	fn handle_mouse_press(&mut self, pos: (u16, u16)) -> Result<Option<ExitCode>, UiError> {
