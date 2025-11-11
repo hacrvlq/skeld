@@ -348,7 +348,7 @@ impl EditorCommand {
 		Ok(Command {
 			program: self.program,
 			args,
-			working_dir: project_dir,
+			working_dir: Some(project_dir),
 			detach: self.detach,
 		})
 	}

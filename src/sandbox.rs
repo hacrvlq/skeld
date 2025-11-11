@@ -94,8 +94,10 @@ impl SandboxParameters {
 			}
 		}
 
-		assert!(command.working_dir.is_absolute());
-		bwrap_args.extend_from_slice(&["--chdir".into(), command.working_dir.clone().into()]);
+		if let Some(working_dir) = &command.working_dir {
+			assert!(working_dir.is_absolute());
+			bwrap_args.extend_from_slice(&["--chdir".into(), working_dir.clone().into()]);
+		}
 		bwrap_args.extend_from_slice(&["--proc".into(), "/proc".into()]);
 		//NOTE: as this argument appears before the virtual fs arguments,
 		//      it is possible to whitelist subpaths of /dev

@@ -18,7 +18,7 @@ use nix::{
 pub struct Command {
 	pub program: String,
 	pub args: Vec<String>,
-	pub working_dir: PathBuf,
+	pub working_dir: Option<PathBuf>,
 	pub detach: bool,
 }
 
@@ -28,9 +28,13 @@ impl Command {
 			detach_from_tty()?;
 		}
 
-		let mut child = OsCommand::new(&self.program)
-			.args(&self.args)
-			.current_dir(&self.working_dir)
+		let mut cmd = OsCommand::new(&self.program);
+		cmd.args(&self.args);
+		if let Some(working_dir) = &self.working_dir {
+			cmd.current_dir(working_dir);
+		}
+
+		let mut child = cmd
 			.spawn()
 			.map_err(|err| format!("Failed to execute command `{}`: {err}", &self.program))?;
 

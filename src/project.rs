@@ -36,14 +36,16 @@ impl ProjectData {
 			return self.command.run();
 		};
 
-		// NOTE: if the user gives the project directory higher permsission
-		//       or tmpfs/symlinks it, 'add_path' returns an error,
-		//       but it should be ignored
-		_ = sandbox_params.fs_tree.add_path(
-			&self.command.working_dir,
-			crate::sandbox::VirtualFSEntryType::ReadWrite,
-			(),
-		);
+		if let Some(project_dir) = &self.command.working_dir {
+			// NOTE: if the user gives the project directory higher permsission
+			//       or tmpfs/symlinks it, 'add_path' returns an error,
+			//       but it should be ignored
+			_ = sandbox_params.fs_tree.add_path(
+				project_dir,
+				crate::sandbox::VirtualFSEntryType::ReadWrite,
+				(),
+			);
+		}
 		sandbox_params.run_cmd(self.command)
 	}
 }
