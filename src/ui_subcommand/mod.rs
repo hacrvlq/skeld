@@ -47,36 +47,8 @@ pub fn run(
 			}
 		});
 
-	use tui::{KeyAction, KeyCode, KeyModifiers, Keybind};
-	let default_keybinds = vec![
-		Keybind {
-			keys: vec![(KeyCode::Char('c'), KeyModifiers::CONTROL)].into(),
-			action: KeyAction::Quit,
-		},
-		Keybind {
-			keys: vec![(KeyCode::Enter, KeyModifiers::NONE)].into(),
-			action: KeyAction::Choose,
-		},
-		Keybind {
-			keys: vec![(KeyCode::Char('j'), KeyModifiers::NONE)].into(),
-			action: KeyAction::MoveDown,
-		},
-		Keybind {
-			keys: vec![(KeyCode::Down, KeyModifiers::NONE)].into(),
-			action: KeyAction::MoveDown,
-		},
-		Keybind {
-			keys: vec![(KeyCode::Char('k'), KeyModifiers::NONE)].into(),
-			action: KeyAction::MoveUp,
-		},
-		Keybind {
-			keys: vec![(KeyCode::Up, KeyModifiers::NONE)].into(),
-			action: KeyAction::MoveUp,
-		},
-	];
-
 	let tui_data = TuiData {
-		keybinds: default_keybinds,
+		keybinds: global_config.keybinds,
 		colorscheme: global_config.colorscheme,
 		banner: global_config.banner.clone(),
 		sections: projects_sections.collect(),

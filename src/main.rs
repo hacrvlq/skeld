@@ -77,5 +77,6 @@ struct GlobalConfig {
 	banner: String,
 	project_button_width: u32,
 	colorscheme: tui::Colorscheme,
+	keybinds: Vec<tui::Keybind>,
 	global_project_data: parsing::RawProjectData,
 }

@@ -139,7 +139,6 @@ impl<'a> TomlValue<'a> {
 	pub fn is_array(&self) -> bool {
 		matches!(self.value, TomlInnerValue::Array(_))
 	}
-	#[expect(unused)]
 	pub fn is_table(&self) -> bool {
 		matches!(self.value, TomlInnerValue::Table(_))
 	}
