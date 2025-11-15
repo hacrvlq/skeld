@@ -122,6 +122,28 @@ impl<'a> TomlValue<'a> {
 	pub fn loc(&self) -> &Location {
 		&self.loc
 	}
+
+	#[expect(unused)]
+	pub fn is_bool(&self) -> bool {
+		matches!(self.value, TomlInnerValue::Boolean(_))
+	}
+	#[expect(unused)]
+	pub fn is_int(&self) -> bool {
+		matches!(self.value, TomlInnerValue::Integer(_))
+	}
+	#[expect(unused)]
+	pub fn is_str(&self) -> bool {
+		matches!(self.value, TomlInnerValue::String(_))
+	}
+	#[expect(unused)]
+	pub fn is_array(&self) -> bool {
+		matches!(self.value, TomlInnerValue::Array(_))
+	}
+	#[expect(unused)]
+	pub fn is_table(&self) -> bool {
+		matches!(self.value, TomlInnerValue::Table(_))
+	}
+
 	pub fn as_bool(&self) -> ModResult<bool> {
 		self.value.as_bool().ok_or_else(|| {
 			diagnostics::wrong_type(self, &[TomlInnerValue::Boolean(Default::default())]).into()
