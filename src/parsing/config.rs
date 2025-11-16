@@ -79,6 +79,7 @@ pub fn parse_config_file(
 	let mut banner = StringOption::new("banner");
 	let mut project_button_width = IntegerOption::new("project-button-width", 0..=u16::MAX as i64);
 	let mut keybinds = ArrayOption::new("keybinds", true, parse_keybind);
+	let mut disable_default_keybinds = BoolOption::new("disable-default-keybinds");
 	parse_lib::parse_table!(
 		parsed_contents => [
 			global_project_data,
@@ -86,6 +87,7 @@ pub fn parse_config_file(
 			banner,
 			project_button_width,
 			keybinds,
+			disable_default_keybinds,
 		],
 		docs-section: "CONFIGURATION",
 	)?;
@@ -100,6 +102,9 @@ pub fn parse_config_file(
 	}
 	if let Some(button_width) = project_button_width.get_value()? {
 		config.project_button_width = button_width.try_into().unwrap();
+	}
+	if disable_default_keybinds.get_value()? == Some(true) {
+		config.keybinds.clear();
 	}
 	if let Some(keybinds) = keybinds.get_value() {
 		config.keybinds.extend(keybinds);
