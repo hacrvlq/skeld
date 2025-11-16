@@ -159,7 +159,7 @@ impl ParseContext<'_> {
 						format!(
 							concat!(
 								"Failed to determine project name of `{}` from the filename,\n",
-								"as it contains contains invalid UTF-8.\n",
+								"as it contains invalid UTF-8.\n",
 								"  NOTE: use the config option 'name' to manually specify a name\n",
 								"  (run `{man_cmd}` for more information)",
 							),
