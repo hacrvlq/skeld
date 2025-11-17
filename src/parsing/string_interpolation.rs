@@ -111,7 +111,7 @@ fn resolve_envvar_expr(
 ) -> Result<String, InternalError> {
 	let first_colon = expr.find(':');
 	let env_var_name = first_colon.map(|pos| &expr[..pos]).unwrap_or(expr);
-	let env_var_alt = first_colon.map(|pos| &expr[pos + 1..]);
+	let fallback_value = first_colon.map(|pos| &expr[pos + 1..]);
 
 	if let Some(placeholder) = find_next_placeholder_poi(env_var_name) {
 		return Err(
@@ -128,9 +128,9 @@ fn resolve_envvar_expr(
 
 	match env::var(env_var_name) {
 		Ok(value) => Ok(value),
-		Err(env::VarError::NotPresent) if env_var_alt.is_some() => {
-			let env_var_alt = env_var_alt.unwrap();
-			raw_resolve_placeholders(env_var_alt, var_resolver)
+		Err(env::VarError::NotPresent) if fallback_value.is_some() => {
+			let fallback_value = fallback_value.unwrap();
+			raw_resolve_placeholders(fallback_value, var_resolver)
 				.map_err(|err| err.shift(env_var_name.len() + 1))
 		}
 		Err(env::VarError::NotPresent) => Err(
@@ -162,9 +162,9 @@ struct StandardVariableResolver<'a> {
 }
 impl VariableResolver for StandardVariableResolver<'_> {
 	fn resolve(&self, expr: &str) -> Result<String, InternalError> {
-		let (var_name, alt_value) = parse_variable(expr)?;
+		let (var_name, fallback_value) = parse_variable(expr)?;
 
-		if let Some(resolved) = resolve_standard_variables(var_name, alt_value)? {
+		if let Some(resolved) = resolve_standard_variables(var_name, fallback_value)? {
 			return Ok(resolved);
 		}
 
@@ -181,17 +181,17 @@ struct VariableResolverWithFile<'a> {
 }
 impl VariableResolver for VariableResolverWithFile<'_> {
 	fn resolve(&self, expr: &str) -> Result<String, InternalError> {
-		let (var_name, alt_value) = parse_variable(expr)?;
+		let (var_name, fallback_value) = parse_variable(expr)?;
 
-		if let Some(resolved) = resolve_standard_variables(var_name, alt_value)? {
+		if let Some(resolved) = resolve_standard_variables(var_name, fallback_value)? {
 			return Ok(resolved);
 		}
 
 		if var_name == "FILE" {
 			return if let Some(file_var_value) = self.file_var_value {
 				Ok(file_var_value.to_owned())
-			} else if let Some(alt_value) = alt_value {
-				raw_resolve_placeholders(alt_value, self)
+			} else if let Some(fallback_value) = fallback_value {
+				raw_resolve_placeholders(fallback_value, self)
 			} else {
 				Err(InternalError::UnresolvableFileVar)
 			};
@@ -204,7 +204,7 @@ impl VariableResolver for VariableResolverWithFile<'_> {
 fn parse_variable(expr: &str) -> Result<(&str, Option<&str>), CanonicalizationError> {
 	let first_colon = expr.find(':');
 	let var_name = first_colon.map(|pos| &expr[..pos]).unwrap_or(expr);
-	let alt_value = first_colon.map(|pos| &expr[pos + 1..]);
+	let fallback_value = first_colon.map(|pos| &expr[pos + 1..]);
 
 	if let Some(placeholder) = find_next_placeholder_poi(var_name) {
 		return Err(CanonicalizationError {
@@ -216,11 +216,11 @@ fn parse_variable(expr: &str) -> Result<(&str, Option<&str>), CanonicalizationEr
 		});
 	}
 
-	Ok((var_name, alt_value))
+	Ok((var_name, fallback_value))
 }
 fn resolve_standard_variables(
 	var_name: &str,
-	alt_value: Option<&str>,
+	fallback_value: Option<&str>,
 ) -> Result<Option<String>, CanonicalizationError> {
 	type XdgDirFn = fn() -> Result<PathBuf, dirs::Error>;
 	let dir_exprs = [
@@ -234,12 +234,12 @@ fn resolve_standard_variables(
 			continue;
 		}
 
-		if let Some(alt_value) = alt_value {
+		if let Some(fallback_value) = fallback_value {
 			return Err(CanonicalizationError {
 				labels: vec![CanonicalizationLabel::primary_with_span(
-					// assumes the format to be $(<var name>:<alt value>)
-					var_name.len()..var_name.len() + 1 + alt_value.len(),
-					format!("alternative values are not supported for $({var_name})"),
+					// assumes the format to be $(<var name>:<fallback>)
+					var_name.len()..var_name.len() + 1 + fallback_value.len(),
+					format!("fallback values are not supported for $({var_name})"),
 				)],
 				..CanonicalizationError::main_message("invalid variable expression")
 			});
