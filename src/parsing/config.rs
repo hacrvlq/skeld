@@ -174,10 +174,15 @@ fn parse_key_combination(mut str: &str) -> Option<(tui::KeyCode, tui::KeyModifie
 	let mut modifiers = tui::KeyModifiers::NONE;
 	let modifier_prefixes = [
 		("s-", tui::KeyModifiers::SHIFT),
+		("S-", tui::KeyModifiers::SHIFT),
 		("c-", tui::KeyModifiers::CONTROL),
+		("C-", tui::KeyModifiers::CONTROL),
 		("a-", tui::KeyModifiers::ALT),
+		("A-", tui::KeyModifiers::ALT),
 		("m-", tui::KeyModifiers::META),
+		("M-", tui::KeyModifiers::META),
 		("d-", tui::KeyModifiers::SUPER),
+		("D-", tui::KeyModifiers::SUPER),
 	];
 	loop {
 		let mut detected_modifier = false;
