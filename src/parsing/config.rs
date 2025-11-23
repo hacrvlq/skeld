@@ -211,7 +211,6 @@ fn parse_key_combination(mut str: &str) -> Option<(tui::KeyCode, tui::KeyModifie
 		"esc" => KeyCode::Esc,
 		"space" => KeyCode::Char(' '),
 		"lt" => KeyCode::Char('<'),
-		"gt" => KeyCode::Char('>'),
 		"del" => KeyCode::Delete,
 		"up" => KeyCode::Up,
 		"down" => KeyCode::Down,
