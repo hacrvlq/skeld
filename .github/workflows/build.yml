@@ -15,20 +15,27 @@ jobs:
           cargo install cross
           echo $'[target.x86_64-unknown-linux-gnu]\nimage = "ghcr.io/cross-rs/x86_64-unknown-linux-gnu:main-centos"' > Cross.toml
           cross build --locked --release --target x86_64-unknown-linux-gnu
-      - name: Build manpage
+      - name: Build manpages
         run: |
-          sudo rm /var/lib/man-db/auto-update # updating the man-db is not necessary
           sudo apt-get install scdoc
-          scdoc < docs/skeld.7.scd > skeld.7
+          scdoc < docs/skeld.1.scd > skeld.1
+          scdoc < docs/skeld-config.5.scd > skeld-config.5
+          scdoc < docs/skeld-project-data.5.scd > skeld-project-data.5
       - name: Package
         id: package
         run: |
           VERSION_STR="v$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[0].version' | sed -e 's/-/_/g')"
           OUT_DIR="skeld-$VERSION_STR-x86_64"
+
           mkdir -p $OUT_DIR/bin
-          mkdir -p $OUT_DIR/share/man/man7
           mv target/x86_64-unknown-linux-gnu/release/skeld $OUT_DIR/bin/
-          mv skeld.7 $OUT_DIR/share/man/man7
+
+          mkdir -p $OUT_DIR/share/man/man1
+          mkdir -p $OUT_DIR/share/man/man5
+          mv skeld.1 $OUT_DIR/share/man/man1
+          mv skeld-config.5 $OUT_DIR/share/man/man5
+          mv skeld-project-data.5 $OUT_DIR/share/man/man5
+
           tar czf $OUT_DIR.tar.gz $OUT_DIR
           echo "package_file=$OUT_DIR.tar.gz" >> $GITHUB_OUTPUT
       - uses: actions/upload-artifact@v4
