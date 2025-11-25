@@ -197,26 +197,18 @@ impl RawProjectData {
 			})?;
 		for data_root_dir in skeld_data_dirs {
 			let include_root_dir = data_root_dir.join("include");
-			let mut possible_file_path = include_root_dir.join(&path);
-			possible_file_path.as_mut_os_string().push(".toml");
+			let possible_file_path = include_root_dir.join(&path);
 			if possible_file_path.exists() {
 				matching_files.push(possible_file_path);
 			}
 		}
 
 		if matching_files.is_empty() {
-			let mut notes = vec![format!(
-				"include files are searched in `<SKELD-DATA>/include`\n(see `{man_cmd}` for more information)",
-				man_cmd = crate::error::get_manpage_cmd("FILES"),
-			)];
-			if path.extension().is_some_and(|ext| ext == "toml") {
-				notes.push(format!(
-					"Note that an extra `toml` extension is appended, so the file `{}.toml` is actually searched.",
-					path.display()
-				));
-			}
 			Err(CanonicalizationError {
-				notes,
+				notes: vec![format!(
+					"include files are searched in `<SKELD-DATA>/include`\n(see `{man_cmd}` for more information)",
+					man_cmd = crate::error::get_manpage_cmd("FILES"),
+				)],
 				..CanonicalizationError::main_message("include file not found")
 			})
 		} else if matching_files.len() > 1 {
