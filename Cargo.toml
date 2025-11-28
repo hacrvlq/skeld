@@ -8,7 +8,6 @@ authors = ["hacrvlq <hacrvlq@proton.me"]
 description = "a TUI tool for opening projects inside a restricted sandbox"
 keywords = ["sandboxing", "project-launcher", "tui"]
 categories = ["command-line-utilities", "security"]
-readme = "docs/README.md"
 repository = "https://github.com/hacrvlq/skeld"
 license = "MIT OR Apache-2.0"
 
