@@ -320,10 +320,10 @@ fn make_unknown_variable_error(expr: &str, file_var_allowed: bool) -> Canonicali
 			0..expr.len(),
 			"unknown variable",
 		)],
-		notes: vec![format!(
-			"supported variables are {valid_variables_str}\n(run `{man_cmd}` to see all supported variables)",
-			man_cmd = crate::error::get_manpage_cmd("String Interpolation"),
-		)],
+		notes: vec![
+			format!("supported variables are {valid_variables_str}",),
+			"(refer to section \"STRING INTERPOLATION\" of skeld-project-data(1) for all supported variables)".to_string(),
+		],
 		..CanonicalizationError::main_message("unknown variable expression")
 	}
 }
