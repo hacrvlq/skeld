@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::{
+	env,
+	path::{Path, PathBuf},
+};
 
 use super::{
 	ModResult, ParseContext,
@@ -204,9 +207,36 @@ impl RawProjectData {
 		}
 
 		if matching_files.is_empty() {
+			let mut data_dirs = Vec::new();
+			if env::var_os("XDG_DATA_HOME").is_some() {
+				data_dirs.push("$XDG_DATA_HOME");
+			} else {
+				data_dirs.push("~/.local/share");
+			}
+			if env::var_os("XDG_CONFIG_HOME").is_some() {
+				data_dirs.push("$XDG_CONFIG_HOME");
+			} else {
+				data_dirs.push("~/.config");
+			}
+			if env::var_os("XDG_DATA_DIRS").is_some() {
+				data_dirs.extend_from_slice(&["$XDG_DATA_DIRS[0]", "$XDG_DATA_DIRS[1]"]);
+			} else {
+				data_dirs.extend_from_slice(&["/usr/share", "/usr/share/local"]);
+			}
+
+			let mut include_file_locations = data_dirs
+				.into_iter()
+				.map(|data_dir| format!("`{data_dir}/skeld/include/`"))
+				.collect::<Vec<_>>()
+				.join(", ");
+			if env::var_os("XDG_DATA_DIRS").is_some() {
+				include_file_locations.push_str(", ...");
+			}
+
 			Err(CanonicalizationError {
-				// TODO: Add a note on where include files are searched.
-				notes: Vec::new(),
+				notes: vec![format!(
+					"include files are searched in {include_file_locations}"
+				)],
 				..CanonicalizationError::main_message("include file not found")
 			})
 		} else if matching_files.len() > 1 {
