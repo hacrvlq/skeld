@@ -67,17 +67,17 @@ impl ParseContext<'_> {
 		let mut keybind = MockOption::new("keybind");
 		let mut project_data = ProjectDataOption::new("project", initial_data, self);
 
-		let docs_section = "PROJECTS";
+		let relevant_manpage = "skeld(1)";
 		parse_lib::parse_table!(
 			parsed_contents => [name, keybind, project_data],
-			docs-section: docs_section,
+			manpage: relevant_manpage,
 		)?;
 		let project_data = project_data
 			.get_value()
 			.into_project_data()
 			.map_err(|err| match err {
 				IntoProjectDataError::MissingConfigOption(missing) => {
-					lib::diagnostics::missing_option(&parsed_contents_loc, &missing, docs_section).into()
+					lib::diagnostics::missing_option(&parsed_contents_loc, &missing, relevant_manpage).into()
 				}
 				IntoProjectDataError::Other(err) => err,
 			})?;
@@ -143,10 +143,10 @@ impl ParseContext<'_> {
 		// mock the project data option, so there is not an "unknown option" error
 		let mut project_data = MockOption::new("project");
 
-		let docs_section = "PROJECTS";
+		let relevant_manpage = "skeld(1)";
 		parse_lib::parse_table!(
 			parsed_contents => [name, keybind, project_data],
-			docs-section: docs_section,
+			manpage: relevant_manpage,
 		)?;
 
 		let project_name = match name.get_value()? {
@@ -161,10 +161,10 @@ impl ParseContext<'_> {
 								"Failed to determine project name of `{}` from the filename,\n",
 								"as it contains invalid UTF-8.\n",
 								"  NOTE: use the config option 'name' to manually specify a name\n",
-								"  (run `{man_cmd}` for more information)",
+								"  (refer to {relevant_manpage} for more information)",
 							),
 							path.display(),
-							man_cmd = crate::error::get_manpage_cmd(docs_section),
+							relevant_manpage = relevant_manpage,
 						)
 					})?
 					.to_string();
@@ -176,10 +176,10 @@ impl ParseContext<'_> {
 								"Cannot use the filename of `{}` as project name,\n",
 								"because it contains a non-ASCII characters.\n",
 								"  NOTE: use the config option 'name' to manually specify a name\n",
-								"  (run `{man_cmd}` for more information)",
+								"  (refer to {relevant_manpage} for more information)",
 							),
 							path.display(),
-							man_cmd = crate::error::get_manpage_cmd(docs_section),
+							relevant_manpage = relevant_manpage,
 						)
 						.into(),
 					);
@@ -192,10 +192,10 @@ impl ParseContext<'_> {
 								"Cannot use the filename of `{}` as project name,\n",
 								"because it contains ASCII control characters.\n",
 								"  NOTE: use the config option 'name' to manually specify a name\n",
-								"  (run `{man_cmd}` for more information)",
+								"  (refer to {relevant_manpage} for more information)",
 							),
 							path.display(),
-							man_cmd = crate::error::get_manpage_cmd(docs_section),
+							relevant_manpage = relevant_manpage,
 						)
 						.into(),
 					);

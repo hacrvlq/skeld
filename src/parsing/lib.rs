@@ -557,7 +557,7 @@ impl<V> ConfigOption for ArrayOption<V> {
 }
 
 macro_rules! parse_table {
-	($table:expr => [$($opt:expr $(; $data:expr)?),* $(,)?], docs-section: $docs_section:expr $(,)?) => { 'ret: {
+	($table:expr => [$($opt:expr $(; $data:expr)?),* $(,)?], manpage: $manpage:expr $(,)?) => { 'ret: {
 		for (key, value) in $table.into_iter() {
 			let result = 'inner_blk: {
 				$(
@@ -572,7 +572,7 @@ macro_rules! parse_table {
 					}
 				)*
 				std::result::Result::Err(
-					$crate::parsing::lib::diagnostics::unknown_option(&key, $docs_section).into()
+					$crate::parsing::lib::diagnostics::unknown_option(&key, $manpage).into()
 				)
 			};
 			if result.is_err() {
@@ -612,23 +612,19 @@ pub mod diagnostics {
 			.with_labels(err.labels.iter().map(convert_label).collect())
 			.with_notes(err.notes.clone())
 	}
-	pub fn missing_option(loc: &Location, missing: &str, docs_section: &str) -> Diagnostic {
+	pub fn missing_option(loc: &Location, missing: &str, manpage: &str) -> Diagnostic {
 		let label = loc.get_primary_label();
 		Diagnostic::new(Severity::Error)
 			.with_message(format!("missing config option `{missing}`"))
 			.with_labels(vec![label])
-			.with_notes(vec![format!(
-				"(run `{man_cmd}` for more information)",
-				man_cmd = crate::error::get_manpage_cmd(docs_section),
-			)])
+			.with_notes(vec![format!("(refer to {manpage} for more information)")])
 	}
-	pub fn unknown_option(key: &TomlKey, docs_section: &str) -> Diagnostic {
+	pub fn unknown_option(key: &TomlKey, manpage: &str) -> Diagnostic {
 		Diagnostic::new(Severity::Error)
 			.with_message("unknown config option")
 			.with_labels(vec![key.loc().get_primary_label()])
 			.with_notes(vec![format!(
-				"(run `{man_cmd}` to see all supported options)",
-				man_cmd = crate::error::get_manpage_cmd(docs_section),
+				"(refer to {manpage} for all supported options)",
 			)])
 	}
 	pub fn multiple_definitions(loc1: &Location, loc2: &Location, name: &str) -> Diagnostic {

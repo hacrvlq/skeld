@@ -50,13 +50,3 @@ impl From<String> for GenericError {
 		Self::Generic(value.into())
 	}
 }
-
-// get cmd to open the skeld manpage at 'section'
-pub fn get_manpage_cmd(section: &str) -> String {
-	let section_str = if section.contains(|ch: char| ch.is_whitespace()) {
-		format!("\"{section}\"")
-	} else {
-		section.to_string()
-	};
-	format!("man -P 'less -p {section_str}$' skeld")
-}

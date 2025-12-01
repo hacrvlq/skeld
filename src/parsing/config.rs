@@ -89,7 +89,7 @@ pub fn parse_config_file(
 			keybinds,
 			disable_default_keybinds,
 		],
-		docs-section: "CONFIGURATION",
+		manpage: "skeld-config(5)",
 	)?;
 
 	let mut config = default_config();
@@ -114,22 +114,22 @@ pub fn parse_config_file(
 }
 
 fn parse_keybind(value: TomlValue) -> ModResult<tui::Keybind> {
-	let docs_section = "CONFIGURATION";
+	let relevant_manpage = "skeld-config(5)";
 
 	let mut table = value.into_table()?;
 
 	let unparsed_keys = table
 		.remove_entry("keys")
-		.ok_or_else(|| diagnostics::missing_option(table.loc(), "keys", docs_section))?;
+		.ok_or_else(|| diagnostics::missing_option(table.loc(), "keys", relevant_manpage))?;
 	let keys = parse_key_sequence(unparsed_keys.1)?;
 
 	let unparsed_action = table
 		.remove_entry("action")
-		.ok_or_else(|| diagnostics::missing_option(table.loc(), "action", docs_section))?;
+		.ok_or_else(|| diagnostics::missing_option(table.loc(), "action", relevant_manpage))?;
 	let action = parse_key_action(unparsed_action.1)?;
 
 	if let Some(unknown_entry) = table.into_iter().next() {
-		return Err(diagnostics::unknown_option(&unknown_entry.0, docs_section).into());
+		return Err(diagnostics::unknown_option(&unknown_entry.0, relevant_manpage).into());
 	}
 
 	Ok(tui::Keybind { keys, action })
@@ -282,17 +282,17 @@ fn parse_action_command(table: TomlTable) -> ModResult<Command> {
 	});
 	let mut detach = BoolOption::new("detach");
 
-	let docs_section = "CONFIGURATION";
+	let relevant_manpage = "skeld-config(1)";
 	parse_lib::parse_table!(
 		table => [cmd, detach],
-		docs-section: docs_section,
+		manpage: relevant_manpage,
 	)?;
 	let cmd = cmd
 		.get_value_with_loc()
-		.ok_or_else(|| diagnostics::missing_option(&table_loc, "cmd", docs_section))?;
+		.ok_or_else(|| diagnostics::missing_option(&table_loc, "cmd", relevant_manpage))?;
 	let detach = detach
 		.get_value()?
-		.ok_or_else(|| diagnostics::missing_option(&table_loc, "detach", docs_section))?;
+		.ok_or_else(|| diagnostics::missing_option(&table_loc, "detach", relevant_manpage))?;
 
 	let mut cmd_iter = cmd.0.into_iter();
 	let program = cmd_iter.next().ok_or_else(|| {
@@ -337,7 +337,7 @@ fn parse_colorscheme(value: TomlValue) -> ModResult<tui::Colorscheme> {
 	let mut background = create_color_option("background");
 	parse_lib::parse_table!(
 		table => [normal, banner, heading, keybind, project_name, background],
-		docs-section: "CONFIGURATION",
+		manpage: "skeld-config(5)",
 	)?;
 
 	let mut resulting_colorscheme = DEFAULT_COLORSCHEME;

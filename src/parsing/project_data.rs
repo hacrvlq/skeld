@@ -174,7 +174,7 @@ impl RawProjectData {
 				self.whitelist_all_envvars ; priority,
 				self.disable_sandbox ; priority,
 			],
-			docs-section: "PROJECT DATA FORMAT",
+			manpage: "skeld-project-data(5)",
 		)?;
 
 		for include_path in include_option.get_value().unwrap_or_default() {
@@ -205,10 +205,8 @@ impl RawProjectData {
 
 		if matching_files.is_empty() {
 			Err(CanonicalizationError {
-				notes: vec![format!(
-					"include files are searched in `<SKELD-DATA>/include`\n(see `{man_cmd}` for more information)",
-					man_cmd = crate::error::get_manpage_cmd("FILES"),
-				)],
+				// TODO: Add a note on where include files are searched.
+				notes: Vec::new(),
 				..CanonicalizationError::main_message("include file not found")
 			})
 		} else if matching_files.len() > 1 {
@@ -391,17 +389,17 @@ impl parse_lib::ConfigOption for EditorCommandOption {
 		});
 		let mut detach = BoolOption::new("detach");
 
-		let docs_section = "PROJECT DATA FORMAT";
+		let relevant_manpage = "skeld-project-data(5)";
 		parse_lib::parse_table!(
 			table => [cmd, detach],
-			docs-section: docs_section,
+			manpage: relevant_manpage,
 		)?;
 		let cmd = cmd
 			.get_value_with_loc()
-			.ok_or_else(|| diagnostics::missing_option(&key_loc, "cmd", docs_section))?;
+			.ok_or_else(|| diagnostics::missing_option(&key_loc, "cmd", relevant_manpage))?;
 		let detach = detach
 			.get_value()?
-			.ok_or_else(|| diagnostics::missing_option(&key_loc, "detach", docs_section))?;
+			.ok_or_else(|| diagnostics::missing_option(&key_loc, "detach", relevant_manpage))?;
 
 		let mut cmd_iter = cmd.0.into_iter();
 		let program = cmd_iter.next().ok_or_else(|| {
