@@ -9,7 +9,6 @@ use std::{
 };
 
 use nix::{
-	errno::Errno,
 	sys::wait::{self, WaitStatus},
 	unistd,
 };
@@ -73,8 +72,6 @@ pub fn detach_from_tty() -> Result<(), String> {
 
 	let (logfile_path, logfile) =
 		create_logfile(logdir).map_err(|err| format!("Failed to create a logfile: {err}"))?;
-	// leak the file descriptor
-	let logfile_fd = logfile.into_raw_fd();
 
 	// SAFETY: program isn't multithreaded
 	match unsafe { unistd::fork() }.unwrap() {
@@ -93,16 +90,11 @@ pub fn detach_from_tty() -> Result<(), String> {
 		),
 		logfile_path.display()
 	);
-	// wrapper of dup2 handling EINTR
-	let dup2 = |oldfd, newfd| loop {
-		match unistd::dup2(oldfd, newfd) {
-			Err(Errno::EINTR) => (),
-			other => return other,
-		}
-	};
-	dup2(logfile_fd, 1).unwrap();
-	dup2(logfile_fd, 2).unwrap();
 	unistd::close(0).unwrap();
+	unistd::dup2_stdout(&logfile).unwrap();
+	unistd::dup2_stderr(&logfile).unwrap();
+	// leak the file descriptor
+	let _ = logfile.into_raw_fd();
 
 	unistd::setsid().unwrap();
 
