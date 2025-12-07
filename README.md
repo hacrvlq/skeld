@@ -41,7 +41,8 @@ Note that only Linux is supported.
 
 ## Getting Started
 
-For version `v0.5.0-dev`, refer to [here](docs/getting-started.md).
+For version `v0.5.0`, refer to
+[here](https://github.com/hacrvlq/skeld/blob/v0.5.0/docs/getting-started.md).
 
 ## Building
 
