@@ -1,10 +1,4 @@
-use std::{
-	collections::HashSet,
-	env,
-	ffi::{CStr, OsStr},
-	os::unix::ffi::OsStrExt as _,
-	path::{Path, PathBuf},
-};
+use std::{collections::HashSet, env, ffi::OsStr, os::unix::ffi::OsStrExt as _, path::PathBuf};
 
 #[expect(clippy::enum_variant_names)]
 #[derive(Debug, derive_more::Display)]
@@ -102,9 +96,8 @@ pub fn get_skeld_state_dir() -> ModResult<PathBuf> {
 }
 
 pub fn get_home_dir() -> ModResult<PathBuf> {
-	let home_dir_path = match env::var_os("HOME") {
-		Some(val) if !val.is_empty() => val.into(),
-		_ => get_home_dir_from_passwd().ok_or(Error::UnknownHomeDir)?,
+	let Some(home_dir_path) = env::home_dir() else {
+		return Err(Error::UnknownHomeDir);
 	};
 
 	if home_dir_path.is_relative() {
@@ -112,17 +105,4 @@ pub fn get_home_dir() -> ModResult<PathBuf> {
 	}
 
 	Ok(home_dir_path)
-}
-fn get_home_dir_from_passwd() -> Option<PathBuf> {
-	let passwd_ptr = unsafe { libc::getpwuid(libc::getuid()) };
-	if passwd_ptr.is_null() {
-		return None;
-	}
-	let home_dir = unsafe { *passwd_ptr }.pw_dir;
-	if home_dir.is_null() {
-		return None;
-	}
-	let home_dir_bytes = unsafe { CStr::from_ptr(home_dir) }.to_bytes();
-	let home_dir_path = Path::new(OsStr::from_bytes(home_dir_bytes)).to_path_buf();
-	Some(home_dir_path)
 }
