@@ -51,7 +51,6 @@ pub fn parse_toml_file<'v>(
 	outlivers: &'v mut Option<String>,
 ) -> ModResult<TomlTable<'v>> {
 	let path = path.as_ref();
-	assert!(path.is_absolute());
 
 	*outlivers = Some(
 		fs::read_to_string(path)
