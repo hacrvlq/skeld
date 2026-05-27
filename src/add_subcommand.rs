@@ -119,7 +119,10 @@ fn get_project_name_from_path(path: &Path) -> Option<&str> {
 		basename
 	};
 
-	assert!(!project_name.is_empty());
+	if project_name.is_empty() {
+		return None;
+	}
+
 	Some(project_name)
 }
 // use known path prefixes like '~'
