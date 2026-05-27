@@ -38,7 +38,6 @@ pub fn run(
 			buttons_numerical.sort_by_key(|button| parse_str_as_num(&button.keybind).unwrap());
 			buttons_rest
 				.sort_by(|a, b| (a.keybind.len(), &a.keybind).cmp(&(b.keybind.len(), &a.keybind)));
-			#[expect(clippy::tuple_array_conversions)]
 			let buttons = [buttons_rest, buttons_numerical].concat();
 
 			ProjectsSection {
