@@ -162,7 +162,7 @@ impl<'a> TomlValue<'a> {
 
 		let TomlInnerValue::Array(array) = self.value else {
 			return Err(
-				diagnostics::wrong_type(&self, &[TomlInnerValue::Table(Default::default())]).into(),
+				diagnostics::wrong_type(&self, &[TomlInnerValue::Array(Default::default())]).into(),
 			);
 		};
 
