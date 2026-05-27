@@ -2,7 +2,7 @@
 name = "skeld"
 version = "0.6.0-dev"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.95"
 
 authors = ["hacrvlq <hacrvlq@proton.me"]
 description = "a TUI tool for opening projects inside a restricted sandbox"

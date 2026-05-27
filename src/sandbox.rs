@@ -352,18 +352,12 @@ impl PartialOrd for VirtualFSEntryType {
 
 // blacklists the TIOCSTI and TIOCLINUX ioctls
 fn get_bpf_program() -> BpfProgram {
-	#[cfg(target_arch = "x86_64")]
-	let arch = SeccompArch::x86_64;
-	#[cfg(target_arch = "aarch64")]
-	let arch = SeccompArch::aarch64;
-	#[cfg(target_arch = "riscv64")]
-	let arch = SeccompArch::riscv64;
-	#[cfg(not(any(
-		target_arch = "aarch64",
-		target_arch = "x86_64",
-		target_arch = "riscv64"
-	)))]
-	compile_error!("only x86_64, aarch64 and riscv64 are supported");
+	let arch = cfg_select! {
+		target_arch = "x86_64" => SeccompArch::x86_64,
+		target_arch = "aarch64" => SeccompArch::aarch64,
+		target_arch = "riscv64" => SeccompArch::riscv64,
+		_ => compile_error!("only x86_64, aarch64 and riscv64 are supported"),
+	};
 
 	const IOCTL_OP_MASK: u64 = 0xFFFF_FFFF;
 	const _: () = assert!(libc::TIOCSTI & !IOCTL_OP_MASK == 0);
