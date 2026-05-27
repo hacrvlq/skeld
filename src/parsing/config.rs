@@ -294,8 +294,11 @@ fn parse_action_command(table: TomlTable) -> ModResult<Command> {
 		.get_value()?
 		.ok_or_else(|| diagnostics::missing_option(&table_loc, "detach", relevant_manpage))?;
 
-	let mut cmd_iter = cmd.0.into_iter();
-	let program = cmd_iter.next().ok_or_else(|| {
+	let mut cmd_iter = cmd.0.into_iter().map(|cmd_part| {
+		string_interpolation::resolve_placeholders(&cmd_part.0)
+			.map_err(|err| diagnostics::failed_canonicalization(&cmd_part.1, &err))
+	});
+	let program = cmd_iter.next().transpose()?.ok_or_else(|| {
 		let label = cmd
 			.1
 			.get_primary_label()
@@ -304,9 +307,7 @@ fn parse_action_command(table: TomlTable) -> ModResult<Command> {
 			.with_message("empty command")
 			.with_labels(vec![label])
 	})?;
-	let program = string_interpolation::resolve_placeholders(&program.0)
-		.map_err(|err| diagnostics::failed_canonicalization(&program.1, &err))?;
-	let args = cmd_iter.map(|(arg, _)| arg).collect();
+	let args = cmd_iter.collect::<Result<Vec<_>, _>>()?;
 
 	Ok(Command {
 		program,
