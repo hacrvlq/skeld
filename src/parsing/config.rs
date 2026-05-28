@@ -9,7 +9,15 @@ use super::{
 	project_data::{self, ProjectDataOption},
 	string_interpolation,
 };
-use crate::{GlobalConfig, command::Command, ui_subcommand::tui};
+use crate::{command::Command, ui_subcommand::tui};
+
+pub struct GlobalConfig {
+	pub banner: String,
+	pub project_button_width: u32,
+	pub colorscheme: tui::Colorscheme,
+	pub keybinds: Vec<tui::Keybind>,
+	pub global_project_data: project_data::RawProjectData,
+}
 
 // Generated with FIGlet using the larry3d font.
 const DEFAULT_BANNER: &str = r"

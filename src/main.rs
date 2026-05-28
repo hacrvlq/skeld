@@ -15,7 +15,7 @@ use std::{path::PathBuf, process::ExitCode};
 
 use clap::Parser as _;
 
-use crate::{parsing::ParseContext, ui_subcommand::tui};
+use crate::parsing::ParseContext;
 
 pub use error::{GenericError, GenericResult};
 
@@ -71,12 +71,4 @@ fn try_main(file_database: &mut parsing::FileDatabase) -> GenericResult<ExitCode
 			Ok(ExitCode::SUCCESS)
 		}
 	}
-}
-
-struct GlobalConfig {
-	banner: String,
-	project_button_width: u32,
-	colorscheme: tui::Colorscheme,
-	keybinds: Vec<tui::Keybind>,
-	global_project_data: parsing::RawProjectData,
 }

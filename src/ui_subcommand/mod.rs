@@ -3,12 +3,12 @@ pub mod tui;
 use std::{collections::HashSet, process::ExitCode};
 
 use self::tui::{ProjectButton, ProjectsSection, TuiData, UiError};
-use crate::{GenericResult, parsing::ParseContext};
+use crate::{
+	GenericResult,
+	parsing::{GlobalConfig, ParseContext},
+};
 
-pub fn run(
-	parse_ctx: &mut ParseContext,
-	global_config: crate::GlobalConfig,
-) -> GenericResult<ExitCode> {
+pub fn run(parse_ctx: &mut ParseContext, global_config: GlobalConfig) -> GenericResult<ExitCode> {
 	let bookmarks = parse_ctx.get_bookmarks()?;
 	let projects = parse_ctx.get_projects()?;
 

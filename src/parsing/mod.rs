@@ -13,11 +13,12 @@ use self::{
 	project_data::{IntoProjectDataError, ProjectDataOption},
 };
 use crate::{
-	GlobalConfig, dirs,
+	dirs,
 	project::{ProjectData, ProjectDataFile, ProjectFileData},
 };
 
 pub use self::{
+	config::GlobalConfig,
 	lib::{Diagnostic, FileDatabase},
 	project_data::RawProjectData,
 };
