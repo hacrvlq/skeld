@@ -624,7 +624,7 @@ pub mod diagnostics {
 			.with_message("unknown config option")
 			.with_labels(vec![key.loc().get_primary_label()])
 			.with_notes(vec![format!(
-				"(refer to {manpage} for all supported options)",
+				"(refer to {manpage} for all supported options)"
 			)])
 	}
 	pub fn multiple_definitions(loc1: &Location, loc2: &Location, name: &str) -> Diagnostic {

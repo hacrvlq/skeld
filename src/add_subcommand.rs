@@ -17,7 +17,7 @@ pub fn run(args: AddArgs) -> ModResult<()> {
 	let project_path = args.project_path.canonicalize().map_err(|err| {
 		format!(
 			"Failed to canonicalize the project path `{}`: {err}",
-			args.project_path.display()
+			args.project_path.display(),
 		)
 	})?;
 
@@ -26,7 +26,7 @@ pub fn run(args: AddArgs) -> ModResult<()> {
 	} else {
 		get_project_name_from_path(&project_path).ok_or(concat!(
 			"Failed to determine a project name from the path.\n",
-			"  NOTE: Use the option '--name' to specify a name."
+			"  NOTE: Use the option '--name' to specify a name.",
 		))?
 	};
 
@@ -36,9 +36,9 @@ pub fn run(args: AddArgs) -> ModResult<()> {
 			format!(
 				concat!(
 					"Failed to make a toml string with the specified project directory,\n",
-					"because it contains invalid UTF-8: `{}`"
+					"because it contains invalid UTF-8: `{}`",
 				),
-				project_dir.display()
+				project_dir.display(),
 			)
 		})?;
 
@@ -47,7 +47,7 @@ pub fn run(args: AddArgs) -> ModResult<()> {
 			format!(
 				concat!(
 					"Failed to make a toml string with the specified project name,\n",
-					"because it contains invalid UTF-8: `{}`"
+					"because it contains invalid UTF-8: `{}`",
 				),
 				project_file.to_string_lossy(),
 			)
@@ -57,7 +57,7 @@ pub fn run(args: AddArgs) -> ModResult<()> {
 			"name = {}\n\n[project]\nproject-dir = {}\ninitial-file = {}",
 			toml_string_escape(project_name),
 			toml_string_escape(project_dir),
-			toml_string_escape(project_file)
+			toml_string_escape(project_file),
 		)
 	} else {
 		let project_dir = normalize_path_prefix(&project_path);
@@ -65,16 +65,16 @@ pub fn run(args: AddArgs) -> ModResult<()> {
 			format!(
 				concat!(
 					"Failed to make a toml string with the specified project path,\n",
-					"because it contains invalid UTF-8: `{}`"
+					"because it contains invalid UTF-8: `{}`",
 				),
-				project_dir.display()
+				project_dir.display(),
 			)
 		})?;
 
 		format!(
 			"name = {}\n\n[project]\nproject-dir = {}",
 			toml_string_escape(project_name),
-			toml_string_escape(project_dir)
+			toml_string_escape(project_dir),
 		)
 	};
 
@@ -93,13 +93,13 @@ pub fn run(args: AddArgs) -> ModResult<()> {
 		if err.kind() == io::ErrorKind::AlreadyExists {
 			concat!(
 				"Failed to add the project, because a project with the same name already exists.\n",
-				"  NOTE: Use option '--name' to specify a different name."
+				"  NOTE: Use option '--name' to specify a different name.",
 			)
 			.to_string()
 		} else {
 			format!(
 				"Failed to create the project file `{}`:\n  {err}",
-				project_filename.display()
+				project_filename.display(),
 			)
 		}
 	})?;
@@ -197,7 +197,7 @@ fn launch_editor(file: impl AsRef<Path>) -> ModResult<()> {
 			format!(
 				"Failed to execute the editor command `{}`:\n  {}",
 				editor_cmd.to_string_lossy(),
-				trimmed_stderr.replace('\n', "\n  ")
+				trimmed_stderr.replace('\n', "\n  "),
 			)
 			.into(),
 		);

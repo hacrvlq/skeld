@@ -65,7 +65,7 @@ pub fn detach_from_tty() -> Result<(), String> {
 	fs::create_dir_all(&logdir).map_err(|err| {
 		format!(
 			"Failed to create the skeld state directory `{}`:\n  {err}",
-			logdir.display()
+			logdir.display(),
 		)
 	})?;
 

@@ -98,7 +98,7 @@ fn resolve_homedir_expr(expr: &str) -> Result<String, InternalError> {
 			)],
 			notes: vec![format!(
 				"home directory path contains invalid UTF-8: `{}`",
-				home_dir_path.display()
+				home_dir_path.display(),
 			)],
 			..CanonicalizationError::main_message("invalid home directory path")
 		})?
@@ -282,7 +282,7 @@ fn convert_dirs_err(
 			notes: vec![
 				concat!(
 					"The home directory is first looked up in `$HOME`,\n",
-					"and then in `/etc/passwd` if `$HOME` does not exist."
+					"and then in `/etc/passwd` if `$HOME` does not exist.",
 				)
 				.to_string(),
 			],
@@ -321,7 +321,7 @@ fn make_unknown_variable_error(expr: &str, file_var_allowed: bool) -> Canonicali
 			"unknown variable",
 		)],
 		notes: vec![
-			format!("supported variables are {valid_variables_str}",),
+			format!("supported variables are {valid_variables_str}"),
 			"(refer to section \"STRING INTERPOLATION\" of skeld-project-data(1) for all supported variables)".to_string(),
 		],
 		..CanonicalizationError::main_message("unknown variable expression")

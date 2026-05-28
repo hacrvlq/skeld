@@ -440,7 +440,7 @@ mod renderer {
 		} else if total_width == 1 {
 			return format!(
 				"{}\n{}\n{}\n",
-				box_chars.down_right, box_chars.vertical, box_chars.up_right
+				box_chars.down_right, box_chars.vertical, box_chars.up_right,
 			);
 		} else if total_width == 2 {
 			return format!(
