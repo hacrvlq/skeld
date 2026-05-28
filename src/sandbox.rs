@@ -125,7 +125,7 @@ fn get_virtual_fs_args_rec(
 	let mut args = Vec::new();
 
 	if let Some((entry, _)) = fs_tree.entry {
-		let path_str: OsString = path_prefix.to_owned().into();
+		let path_str: OsString = path_prefix.clone().into();
 		let entry_args: &[_] = match entry {
 			VirtualFSEntryType::AllowDev => &["--dev-bind-try".into(), path_str.clone(), path_str],
 			VirtualFSEntryType::ReadWrite => &["--bind-try".into(), path_str.clone(), path_str],
@@ -228,10 +228,12 @@ impl<U: Clone> VirtualFSTree<U> {
 	}
 	fn add_path_rec(
 		&mut self,
-		parts: &[&OsStr],
+		components: &[&OsStr],
 		entry: (VirtualFSEntryType, U),
 	) -> Result<(), FSTreeError<U>> {
-		if let Some(next_part) = parts.first() {
+		if let Some(next_component) = components.first() {
+			// Recurse into corresponding child.
+
 			if self.should_be_leaf() {
 				return Err(FSTreeError::IllegalChildren {
 					inner_path: self.entry.as_ref().unwrap().1.clone(),
@@ -242,22 +244,25 @@ impl<U: Clone> VirtualFSTree<U> {
 				return Ok(());
 			}
 
-			let matching_children = if let Some(existing_children) = self
+			let child = self
 				.children
 				.iter_mut()
-				.find(|p| &p.path_component == next_part)
-			{
-				existing_children
+				.find(|p| &p.path_component == next_component);
+			let child = if let Some(child) = child {
+				child
 			} else {
 				self.children.push(VirtualFSTree {
-					path_component: next_part.into(),
+					path_component: next_component.into(),
 					children: Vec::new(),
 					entry: None,
 				});
 				self.children.last_mut().unwrap()
 			};
-			matching_children.add_path_rec(&parts[1..], entry)
-		} else if !entry.0.should_be_leaf() {
+
+			child.add_path_rec(&components[1..], entry)
+		}
+		// Add a non-leaf entry.
+		else if !entry.0.should_be_leaf() {
 			if self.should_be_leaf() {
 				return Err(FSTreeError::ConflictingEntries(
 					self.entry.as_ref().unwrap().1.clone(),
@@ -271,7 +276,9 @@ impl<U: Clone> VirtualFSTree<U> {
 			self.filter_subpaths(entry.0);
 			self.entry = Some(entry);
 			Ok(())
-		} else {
+		}
+		// Add a leaf entry.
+		else {
 			match &self.entry {
 				Some((ty, _)) if ty == &entry.0 => return Ok(()),
 				Some((_, u)) => return Err(FSTreeError::ConflictingEntries(u.clone(), entry.1)),
@@ -309,15 +316,14 @@ impl<U: Clone> VirtualFSTree<U> {
 			self.entry = None;
 		}
 
-		let mut found_subpath_whitelist = false;
+		let mut found_higher_subpath = self.entry.is_some();
 		self.children.retain_mut(|child| {
 			let child_val = child.filter_subpaths(ty);
-			found_subpath_whitelist |= child_val;
+			found_higher_subpath |= child_val;
 			child_val
 		});
 
-		found_subpath_whitelist |= self.entry.is_some();
-		found_subpath_whitelist
+		found_higher_subpath
 	}
 	fn find_subpath_entry(&self) -> &(VirtualFSEntryType, U) {
 		if let Some(entry) = &self.entry {
@@ -364,7 +370,7 @@ fn get_bpf_program() -> BpfProgram {
 	const IOCTL_OP_MASK: u64 = 0xFFFF_FFFF;
 	const _: () = assert!(libc::TIOCSTI & !IOCTL_OP_MASK == 0);
 	const _: () = assert!(libc::TIOCLINUX & !IOCTL_OP_MASK == 0);
-	let blacklist_syscalls = [(
+	let blacklisted_syscalls = [(
 		libc::SYS_ioctl,
 		vec![
 			SeccompRule::new(vec![
@@ -390,7 +396,7 @@ fn get_bpf_program() -> BpfProgram {
 		],
 	)];
 	SeccompFilter::new(
-		blacklist_syscalls.into_iter().collect(),
+		blacklisted_syscalls.into_iter().collect(),
 		SeccompAction::Allow,
 		SeccompAction::Trap,
 		arch,

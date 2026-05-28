@@ -363,6 +363,7 @@ fn parse_colorscheme(value: TomlValue) -> ModResult<tui::Colorscheme> {
 	handle_color_option!(keybind);
 	handle_color_option!(project_name);
 	handle_color_option!(background);
+
 	Ok(resulting_colorscheme)
 }
 fn parse_tui_color(value: TomlValue) -> ModResult<tui::Color> {

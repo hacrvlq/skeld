@@ -50,7 +50,7 @@ impl InternalError {
 	fn shift(self, amount: usize) -> Self {
 		match self {
 			Self::Other(err) => Self::Other(err.shift(amount)),
-			Self::UnresolvableFileVar => self,
+			Self::UnresolvableFileVar => Self::UnresolvableFileVar,
 		}
 	}
 }
@@ -88,7 +88,7 @@ fn raw_resolve_placeholders(
 }
 fn resolve_homedir_expr(expr: &str) -> Result<String, InternalError> {
 	let home_dir_path =
-		dirs::get_home_dir().map_err(|err| convert_dirs_err(err, 0..expr.len(), None))?;
+		dirs::get_home_dir().map_err(|err| handle_dirs_err(err, 0..expr.len(), None))?;
 	let home_dir_str = home_dir_path
 		.to_str()
 		.ok_or_else(|| CanonicalizationError {
@@ -128,8 +128,7 @@ fn resolve_envvar_expr(
 
 	match env::var(env_var_name) {
 		Ok(value) => Ok(value),
-		Err(env::VarError::NotPresent) if fallback_value.is_some() => {
-			let fallback_value = fallback_value.unwrap();
+		Err(env::VarError::NotPresent) if let Some(fallback_value) = fallback_value => {
 			raw_resolve_placeholders(fallback_value, var_resolver)
 				.map_err(|err| err.shift(env_var_name.len() + 1))
 		}
@@ -187,17 +186,17 @@ impl VariableResolver for VariableResolverWithFile<'_> {
 			return Ok(resolved);
 		}
 
-		if var_name == "FILE" {
-			return if let Some(file_var_value) = self.file_var_value {
-				Ok(file_var_value.to_owned())
-			} else if let Some(fallback_value) = fallback_value {
-				raw_resolve_placeholders(fallback_value, self)
-			} else {
-				Err(InternalError::UnresolvableFileVar)
-			};
+		if var_name != "FILE" {
+			return Err(make_unknown_variable_error(var_name, true).into());
 		}
 
-		Err(make_unknown_variable_error(var_name, true).into())
+		if let Some(file_var_value) = self.file_var_value {
+			Ok(file_var_value.to_owned())
+		} else if let Some(fallback_value) = fallback_value {
+			raw_resolve_placeholders(fallback_value, self)
+		} else {
+			Err(InternalError::UnresolvableFileVar)
+		}
 	}
 }
 
@@ -247,7 +246,7 @@ fn resolve_standard_variables(
 
 		let dirname = varname.to_lowercase();
 		let resolved_expr_path =
-			resolve_fn().map_err(|err| convert_dirs_err(err, 0..var_name.len(), Some(&dirname)))?;
+			resolve_fn().map_err(|err| handle_dirs_err(err, 0..var_name.len(), Some(&dirname)))?;
 		let resolved_expr_str = resolved_expr_path
 			.to_str()
 			.ok_or_else(|| CanonicalizationError {
@@ -266,7 +265,7 @@ fn resolve_standard_variables(
 
 	Ok(None)
 }
-fn convert_dirs_err(
+fn handle_dirs_err(
 	err: dirs::Error,
 	span: Range<usize>,
 	xdg_dirname: Option<&str>,
@@ -293,7 +292,6 @@ fn convert_dirs_err(
 			notes: vec![dirs::Error::RelativeHomeDir { dir }.to_string()],
 			..CanonicalizationError::main_message("invalid home directory")
 		},
-		dirs::Error::RelativeXdgBaseDir { .. } if xdg_dirname.is_none() => unreachable!(),
 		dirs::Error::RelativeXdgBaseDir { varname, dir } => {
 			let xdg_dirname = xdg_dirname.unwrap();
 			CanonicalizationError {

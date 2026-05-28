@@ -2,6 +2,7 @@ use std::{
 	env,
 	error::Error,
 	ffi::{OsStr, OsString},
+	fmt::Write as _,
 	fs::{self, File},
 	io::{self, Write as _},
 	os::unix::ffi::OsStringExt as _,
@@ -30,8 +31,15 @@ pub fn run(args: AddArgs) -> ModResult<()> {
 		))?
 	};
 
-	let project_file_contents = if project_path.is_file() {
-		let project_dir = normalize_path_prefix(project_path.parent().unwrap());
+	let mut project_file_contents = String::new();
+	write!(
+		project_file_contents,
+		"name = {}\n\n",
+		toml_string_escape(project_name)
+	)
+	.unwrap();
+	if project_path.is_file() {
+		let project_dir = abbreviate_known_prefixes(project_path.parent().unwrap());
 		let project_dir = project_dir.to_str().ok_or_else(|| {
 			format!(
 				concat!(
@@ -53,14 +61,15 @@ pub fn run(args: AddArgs) -> ModResult<()> {
 			)
 		})?;
 
-		format!(
-			"name = {}\n\n[project]\nproject-dir = {}\ninitial-file = {}",
-			toml_string_escape(project_name),
+		write!(
+			project_file_contents,
+			"[project]\nproject-dir = {}\ninitial-file = {}",
 			toml_string_escape(project_dir),
 			toml_string_escape(project_file),
 		)
+		.unwrap();
 	} else {
-		let project_dir = normalize_path_prefix(&project_path);
+		let project_dir = abbreviate_known_prefixes(&project_path);
 		let project_dir = project_dir.to_str().ok_or_else(|| {
 			format!(
 				concat!(
@@ -71,12 +80,13 @@ pub fn run(args: AddArgs) -> ModResult<()> {
 			)
 		})?;
 
-		format!(
-			"name = {}\n\n[project]\nproject-dir = {}",
-			toml_string_escape(project_name),
+		write!(
+			project_file_contents,
+			"[project]\nproject-dir = {}",
 			toml_string_escape(project_dir),
 		)
-	};
+		.unwrap();
+	}
 
 	let projects_dir = dirs::get_skeld_data_dir()
 		.map_err(|err| format!("Failed to determine the skeld data directory:\n  {err}"))?
@@ -125,7 +135,7 @@ fn get_project_name_from_path(path: &Path) -> Option<&str> {
 
 	Some(project_name)
 }
-fn normalize_path_prefix(path: impl AsRef<Path>) -> PathBuf {
+fn abbreviate_known_prefixes(path: impl AsRef<Path>) -> PathBuf {
 	let path = path.as_ref();
 
 	let handle_prefix = |prefix: Option<PathBuf>, replacement: &str| {

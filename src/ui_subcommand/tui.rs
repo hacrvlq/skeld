@@ -294,12 +294,12 @@ impl UIState<'_, '_, '_> {
 			return Ok(None);
 		};
 
-		const DOUBLE_CLICK_TIME: f64 = 0.5;
+		const DOUBLE_CLICK_TIME_MS: u128 = 500;
 		if self
 			.prev_mouse_press
 			.as_ref()
 			.is_some_and(|(prev_button, prev_time)| {
-				prev_button == &pressed_button && (now - *prev_time).as_secs_f64() < DOUBLE_CLICK_TIME
+				prev_button == &pressed_button && (now - *prev_time).as_millis() < DOUBLE_CLICK_TIME_MS
 			}) {
 			self.prev_mouse_press = None;
 
@@ -435,23 +435,26 @@ mod renderer {
 			BOX_DRAWING_CHARS
 		};
 
-		if total_width == 0 {
-			return String::new();
-		} else if total_width == 1 {
-			return format!(
-				"{}\n{}\n{}\n",
-				box_chars.down_right, box_chars.vertical, box_chars.up_right,
-			);
-		} else if total_width == 2 {
-			return format!(
-				"{}{}\n{}{}\n{}{}\n",
-				box_chars.down_right,
-				box_chars.down_left,
-				box_chars.vertical,
-				box_chars.vertical,
-				box_chars.up_right,
-				box_chars.up_left,
-			);
+		match total_width {
+			0 => return String::new(),
+			1 => {
+				return format!(
+					"{}\n{}\n{}\n",
+					box_chars.down_right, box_chars.vertical, box_chars.up_right,
+				);
+			}
+			2 => {
+				return format!(
+					"{}{}\n{}{}\n{}{}\n",
+					box_chars.down_right,
+					box_chars.down_left,
+					box_chars.vertical,
+					box_chars.vertical,
+					box_chars.up_right,
+					box_chars.up_left,
+				);
+			}
+			_ => (),
 		}
 
 		let mut result = String::new();

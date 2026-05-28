@@ -63,13 +63,13 @@ pub fn get_xdg_data_dirs() -> ModResult<Vec<PathBuf>> {
 		.collect::<Vec<_>>();
 
 	if let Some(relative_path) = paths.iter().find(|path| path.is_relative()) {
-		Err(Error::RelativeXdgBaseDir {
+		return Err(Error::RelativeXdgBaseDir {
 			varname: "XDG_DATA_DIRS".to_string(),
 			dir: relative_path.clone(),
-		})
-	} else {
-		Ok(paths)
+		});
 	}
+
+	Ok(paths)
 }
 
 pub fn get_skeld_config_dir() -> ModResult<PathBuf> {

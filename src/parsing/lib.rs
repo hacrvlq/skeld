@@ -291,7 +291,7 @@ impl<T: PartialEq> ConfigOption for BaseOption<'_, T> {
 
 macro_rules! wrap_BaseOption {
 	($vis:vis $name:ident : $inner_type:ty) => {
-		#[derive(std::clone::Clone, std::fmt::Debug)]
+		#[derive(::std::clone::Clone, ::std::fmt::Debug)]
 		$vis struct $name<'a>($crate::parsing::lib::BaseOption<'a, $inner_type>);
 
 		impl<'a> $crate::parsing::lib::ConfigOption for $name<'a> {
@@ -538,18 +538,18 @@ impl<V> ConfigOption for ArrayOption<V> {
 		let value_loc = value.loc().clone();
 		let array = value.into_array()?;
 
-		match &self.value {
-			Some((_, prev_loc, _)) if !self.mergable => {
-				return Err(diagnostics::multiple_definitions(&key_loc, prev_loc, &self.name).into());
-			}
-			_ => (),
+		if !self.mergable
+			&& let Some((_, prev_loc, _)) = &self.value
+		{
+			return Err(diagnostics::multiple_definitions(&key_loc, prev_loc, &self.name).into());
 		}
 		let (values, _, _) = self
 			.value
 			.get_or_insert_with(|| (Vec::new(), key_loc, value_loc));
 
 		for inner_value in array {
-			values.push((self.parse_entry_fn)(inner_value)?);
+			let parsed = (self.parse_entry_fn)(inner_value)?;
+			values.push(parsed);
 		}
 
 		Ok(())
@@ -560,18 +560,17 @@ macro_rules! parse_table {
 	($table:expr => [$($opt:expr $(; $data:expr)?),* $(,)?], manpage: $manpage:expr $(,)?) => { 'ret: {
 		for (key, value) in $table.into_iter() {
 			let result = 'inner_blk: {
+				#[allow(clippy::allow_attributes, unused_imports)]
+				use $crate::parsing::lib::ConfigOption as _;
 				$(
-					#[allow(clippy::allow_attributes, unused_imports)]
-					use $crate::parsing::lib::ConfigOption as _;
 					if let Some(parsed_key) = $opt.would_eat(&key) {
 						#[allow(clippy::allow_attributes, unused_mut, unused_assignments)]
-						let mut user_data = std::default::Default::default();
+						let mut user_data = ::std::default::Default::default();
 						$( user_data = $data; )?
-
 						break 'inner_blk $opt.eat_with_user_data(parsed_key, value, user_data);
 					}
 				)*
-				std::result::Result::Err(
+				::std::result::Result::Err(
 					$crate::parsing::lib::diagnostics::unknown_option(&key, $manpage).into()
 				)
 			};

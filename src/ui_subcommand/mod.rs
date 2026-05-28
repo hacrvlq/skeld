@@ -19,11 +19,11 @@ pub fn run(parse_ctx: &mut ParseContext, global_config: GlobalConfig) -> Generic
 
 	let projects_sections = [("Bookmarks", bookmarks), ("Projects", projects)]
 		.into_iter()
-		.filter(|section| !section.1.is_empty())
 		.map(|(heading, projects)| {
 			let buttons = projects.into_iter().map(|project| ProjectButton {
 				keybind: project.keybind.unwrap_or_else(|| {
-					let first_unused_num = (1..).find(|i| numeric_keybinds.insert(*i)).unwrap();
+					let first_unused_num = (1..).find(|i| !numeric_keybinds.contains(i)).unwrap();
+					numeric_keybinds.insert(first_unused_num);
 					first_unused_num.to_string()
 				}),
 				project_name: project.name,
@@ -41,7 +41,8 @@ pub fn run(parse_ctx: &mut ParseContext, global_config: GlobalConfig) -> Generic
 				heading: heading.to_string(),
 				buttons,
 			}
-		});
+		})
+		.filter(|section| !section.buttons.is_empty());
 
 	let tui_data = TuiData {
 		keybinds: global_config.keybinds,
