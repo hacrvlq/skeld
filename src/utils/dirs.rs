@@ -1,7 +1,7 @@
 use std::{collections::HashSet, env, ffi::OsStr, os::unix::ffi::OsStrExt as _, path::PathBuf};
 
 #[expect(clippy::enum_variant_names)]
-#[derive(Debug, derive_more::Display)]
+#[derive(derive_more::Display, Debug)]
 pub enum Error {
 	#[display("home directory could not be determined")]
 	UnknownHomeDir,

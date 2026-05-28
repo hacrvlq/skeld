@@ -40,7 +40,7 @@ pub fn resolve_placeholders_with_file(
 trait VariableResolver {
 	fn resolve(&self, expr: &str) -> Result<String, InternalError>;
 }
-#[derive(Clone, Debug, derive_more::From)]
+#[derive(Clone, derive_more::From, Debug)]
 enum InternalError {
 	UnresolvableFileVar,
 	#[from]
@@ -337,7 +337,7 @@ enum Placeholder {
 		inner_span: Range<usize>,
 	},
 }
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 enum BracketType {
 	Square,
 	Round,

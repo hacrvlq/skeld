@@ -171,7 +171,7 @@ pub struct VirtualFSTree<U> {
 	// `U` can be used for user data to identify paths in the event of an error.
 	entry: Option<(VirtualFSEntryType, U)>,
 }
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum VirtualFSEntryType {
 	// Whitelists
 	AllowDev,

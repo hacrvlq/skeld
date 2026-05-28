@@ -8,7 +8,7 @@ use crate::parsing::FileDatabase;
 pub use crate::parsing::Diagnostic;
 
 // Alternative to `Box<dyn Error>`, which also supports Diagnostic's.
-#[derive(Debug, derive_more::From)]
+#[derive(derive_more::From, Debug)]
 pub enum GenericError {
 	Diagnostic(Diagnostic),
 	Generic(Box<dyn Error>),

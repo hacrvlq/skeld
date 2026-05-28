@@ -229,13 +229,13 @@ impl Location {
 		DiagLabel::secondary(self.file.0, self.span)
 	}
 }
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct FileId(usize);
 
 // ====================================================================================================
 // Basic config options
 // ====================================================================================================
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct Priority(pub i64);
 
 // Helper config option that eats only a specific key using a specified parse

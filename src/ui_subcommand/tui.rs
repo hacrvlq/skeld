@@ -24,7 +24,7 @@ pub struct Keybind {
 	pub keys: KeySequence,
 	pub action: KeyAction,
 }
-#[derive(Clone, Debug, derive_more::From)]
+#[derive(Clone, derive_more::From, Debug)]
 pub struct KeySequence(pub Vec<(KeyCode, KeyModifiers)>);
 #[derive(Clone, Debug)]
 pub enum KeyAction {
@@ -37,7 +37,7 @@ pub enum KeyAction {
 }
 
 pub use crossterm::style::Color;
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Colorscheme {
 	pub normal: Color,
 	pub banner: Color,
@@ -67,7 +67,7 @@ pub(super) struct ProjectButton {
 	pub(super) project: ProjectDataFile,
 }
 
-#[derive(Debug, derive_more::From)]
+#[derive(derive_more::From, Debug)]
 pub(super) enum UiError {
 	IoError(io::Error),
 	NoTty,
