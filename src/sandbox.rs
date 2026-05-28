@@ -99,8 +99,8 @@ impl SandboxParameters {
 			bwrap_args.extend_from_slice(&["--chdir".into(), working_dir.clone().into()]);
 		}
 		bwrap_args.extend_from_slice(&["--proc".into(), "/proc".into()]);
-		//NOTE: as this argument appears before the virtual fs arguments,
-		//      it is possible to whitelist subpaths of /dev
+		// NOTE: This needs to be added before the virtual fs arguments, so it's
+		// possible to whitelist subpaths of /dev.
 		bwrap_args.extend_from_slice(&["--dev".into(), "/dev".into()]);
 
 		bwrap_args.extend(get_virtual_fs_args(&self.fs_tree)?);
@@ -155,34 +155,32 @@ fn get_envvar_whitelist_args(envvar_whitelists: &[OsString]) -> Vec<OsString> {
 	args
 }
 
-// path tree of all virtual-fs-entries with the following normalization:
-// 1. All subpaths of a path can only have higher permissions.
-//    If this is not the case, the tree is silently normalized.
-// 2. Tmpfs/Symlinks cannot have any whitelists in subpaths.
-//    If this is not the case, an error is returned.
+// Path tree of all virtual-fs-entries with the following normalization:
+// 1. All subpaths of a path can only have higher permissions. If this is not
+//    the case, the tree is silently normalized.
+// 2. Tmpfs/Symlinks cannot have any whitelists in subpaths. If this is not the
+//    case, an error is returned.
 #[derive(Clone, Debug)]
 pub struct VirtualFSTree<U> {
-	// the current component of the path
 	path_component: OsString,
 	children: Vec<VirtualFSTree<U>>,
-	// may contain a virtual-fs-entry of the current path
-	// U can be used for user data to identify paths
-	// in the event of an error
+	// May contain a virtual-fs-entry of the current path.
+	// `U` can be used for user data to identify paths in the event of an error.
 	entry: Option<(VirtualFSEntryType, U)>,
 }
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum VirtualFSEntryType {
-	// whitelists
+	// Whitelists
 	AllowDev,
 	ReadWrite,
 	ReadOnly,
-	// others (need to be leafs)
+	// Others (need to be leafs)
 	Tmpfs,
 	Symlink,
 }
 #[derive(Clone, Debug)]
 pub enum FSTreeError<U> {
-	// 'inner_path' is not allowed to have children, but invalid_child is one
+	// `inner_path` is not allowed to have children, but `invalid_child` is one.
 	IllegalChildren { inner_path: U, invalid_child: U },
 	ConflictingEntries(U, U),
 }
@@ -207,6 +205,7 @@ impl<U: Clone> VirtualFSTree<U> {
 	}
 	pub fn add_path(
 		&mut self,
+		// Must be absolute.
 		path: impl AsRef<Path>,
 		ty: VirtualFSEntryType,
 		user_data: U,
@@ -278,7 +277,7 @@ impl<U: Clone> VirtualFSTree<U> {
 
 			self.entry = Some(entry);
 			let invalid_child = self.children.first().cloned();
-			// clear children even in an event of an error so the tree remains valid
+			// Clear children even in an event of an error so the tree remains valid.
 			self.children.clear();
 
 			if let Some(invalid_child) = invalid_child {
@@ -297,7 +296,7 @@ impl<U: Clone> VirtualFSTree<U> {
 			.as_ref()
 			.is_some_and(|(ty, _)| ty.should_be_leaf())
 	}
-	// filter out subpaths with lower permissions
+	// Filter out subpaths with lower permissions.
 	fn filter_subpaths(&mut self, ty: VirtualFSEntryType) -> bool {
 		if self
 			.entry
@@ -350,7 +349,7 @@ impl PartialOrd for VirtualFSEntryType {
 	}
 }
 
-// blacklists the TIOCSTI and TIOCLINUX ioctls
+// Blacklists the TIOCSTI and TIOCLINUX ioctls.
 fn get_bpf_program() -> BpfProgram {
 	let arch = cfg_select! {
 		target_arch = "x86_64" => SeccompArch::x86_64,

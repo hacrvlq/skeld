@@ -71,8 +71,8 @@ impl parse_lib::ConfigOption for ProjectDataOption<'_, '_> {
 	}
 }
 
-// for each config option the configured value is saved or
-// nothing if this config option has not yet been specified
+// For each config option the configured value is saved or nothing if this
+// config option has not yet been specified.
 #[derive(Clone, Debug)]
 pub struct RawProjectData {
 	project_dir: PathBufOption<'static>,

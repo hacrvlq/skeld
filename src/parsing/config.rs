@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{GlobalConfig, command::Command, ui_subcommand::tui};
 
-// generated with FIGlet using the larry3d font
+// Generated with FIGlet using the larry3d font.
 const DEFAULT_BANNER: &str = r"
        __              ___       __
       /\ \            /\_ \     /\ \
@@ -156,7 +156,7 @@ fn parse_key_sequence(value: TomlValue) -> ModResult<tui::KeySequence> {
 			keys.push(key);
 			unprocssed_str = &unprocssed_str[closing_bracket + 1..];
 		} else {
-			// interpret the '<' as a char if it is not part of a valid key combination
+			// Interpret the '<' as a char if it is not part of a valid key combination.
 			keys.push((tui::KeyCode::Char('<'), tui::KeyModifiers::NONE));
 			unprocssed_str = &unprocssed_str[1..];
 		}

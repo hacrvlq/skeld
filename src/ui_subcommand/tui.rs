@@ -83,7 +83,7 @@ pub(super) fn run(
 	}
 
 	setup_terminal().inspect_err(|_| restore_terminal())?;
-	// restore the terminal before a panic is displayed
+	// Restore the terminal before a panic is displayed.
 	let default_panic_hook = panic::take_hook();
 	panic::set_hook(Box::new(move |info| {
 		restore_terminal();
@@ -93,7 +93,7 @@ pub(super) fn run(
 	let result = protected_run(tui_data, global_project_data, parse_ctx);
 
 	restore_terminal();
-	// revert to the default panic hook
+	// Revert to the default panic hook.
 	let _ = panic::take_hook();
 
 	result
@@ -156,8 +156,8 @@ struct UIState<'a, 'b, 'c> {
 
 	buttons_clickable_area: Vec<renderer::Area>,
 	selected_button: usize,
-	// accumulated pressed keys
-	// (never cleared, only the end is checked for a match)
+	// Accumulated pressed keys (never cleared, only the end is checked for a
+	// match).
 	acc_pressed_keys: Vec<(KeyCode, KeyModifiers)>,
 	// prev_mouse_press: Option<(pressed button, _)>
 	prev_mouse_press: Option<(usize, time::Instant)>,
@@ -192,9 +192,9 @@ impl UIState<'_, '_, '_> {
 			.keybinds
 			.iter()
 			.filter(|keybind| self.is_key_sequence_pressed(&keybind.keys))
-			// NOTE: If multiple elements are equal to the maximum, 'max_by_key'
-			//       returns the last one. This allows keybinds defined later to
-			//       override those defined earlier.
+			// NOTE: If multiple elements are equal to the maximum, `max_by_key` returns the
+			// last one. This allows keybinds defined later to override those defined
+			// earlier.
 			.max_by_key(|keybind| keybind.keys.0.len());
 		if let Some(keybind) = matching_keybind {
 			match &keybind.action {
@@ -320,7 +320,7 @@ impl UIState<'_, '_, '_> {
 
 	fn handle_selected_project(&mut self, project: ProjectDataFile) -> Result<ExitCode, UiError> {
 		// NOTE: Since the TUI exits after a project is selected,
-		//       'self.global_project_data' will always contain something.
+		// `self.global_project_data` will always contain something.
 		let global_project_data = self.global_project_data.take().unwrap();
 		let project_data = project.load(global_project_data, self.parse_ctx)?;
 
@@ -356,9 +356,9 @@ mod renderer {
 
 	use super::{Colorscheme, UIState};
 
-	// layouts and renderes the UI state
-	// This does *not* draw directly to the terminal. Instead, this returns a
-	// 'RenderedContent', which can then be displayed to the terminal. The area for
+	// Layouts and renderes the UI state.
+	// NOTE: This does *not* draw directly to the terminal. Instead, this returns a
+	// `RenderedContent`, which can then be displayed to the terminal. The area for
 	// each button is also returned.
 	pub fn render(state: &UIState) -> io::Result<(RenderedContent, Vec<Area>)> {
 		let tui_data = state.tui_data;

@@ -21,13 +21,13 @@ pub use toml_span::value::ValueInner as TomlInnerValue;
 pub type Diagnostic = diagnostic::Diagnostic<usize>;
 pub type FileDatabase = codespan_files::SimpleFiles<String, String>;
 
-// trait implementors should save current config value
-// and update it with each 'eat_with_user_data'
+// Trait implementors should save current config value and update it with each
+// `eat_with_user_data`.
 pub trait ConfigOption {
 	type ParsedKey;
 	type UserData: Default;
 
-	// should return 'Some' when 'key' is to be processed by this option
+	// Should return `Some` when `key` is to be processed by this option.
 	fn would_eat(&self, key: &TomlKey) -> Option<Self::ParsedKey>;
 	fn eat_with_user_data(
 		&mut self,
@@ -42,12 +42,12 @@ pub trait ConfigOption {
 }
 
 // =================================================================================================
-// Wrappers around 'toml_span' adding file location info
+// Wrappers around `toml_span` adding file location info
 // =================================================================================================
 pub fn parse_toml_file<'v>(
 	path: impl AsRef<Path>,
 	file_database: &mut FileDatabase,
-	// file contents and root toml value need to outlive the return value
+	// File contents and root toml value need to outlive the return value.
 	outlivers: &'v mut Option<String>,
 ) -> ModResult<TomlTable<'v>> {
 	let path = path.as_ref();
@@ -238,7 +238,8 @@ pub struct FileId(usize);
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Priority(pub i64);
 
-// helper config option that eats only a specific key using a specified parse function
+// Helper config option that eats only a specific key using a specified parse
+// function.
 #[derive(Clone, derive_more::Debug)]
 pub struct BaseOption<'a, T> {
 	#[debug(skip)]
@@ -363,7 +364,7 @@ impl<'a> IntegerOption<'a> {
 	}
 }
 
-// useful to suppress "unknown option" errors
+// Useful to suppress "unknown option" errors.
 #[derive(Clone, Debug)]
 pub struct MockOption {
 	name: String,

@@ -237,7 +237,7 @@ fn resolve_standard_variables(
 		if let Some(fallback_value) = fallback_value {
 			return Err(CanonicalizationError {
 				labels: vec![CanonicalizationLabel::primary_with_span(
-					// assumes the format to be $(<var name>:<fallback>)
+					// Assumes the format to be $(<var name>:<fallback>).
 					var_name.len()..var_name.len() + 1 + fallback_value.len(),
 					format!("fallback values are not supported for $({var_name})"),
 				)],
@@ -426,6 +426,7 @@ fn find_next_placeholder_poi(str: &str) -> Option<(Range<usize>, PlaceholderPoI)
 		.min_by_key(|(span, _)| span.start)
 }
 
+// Assumes `replacements` are ordered and non-overlapping.
 fn replace_multiple_ranges(
 	str: &str,
 	replacements: impl IntoIterator<Item = (Range<usize>, String)>,

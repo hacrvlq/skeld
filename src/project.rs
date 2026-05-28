@@ -9,7 +9,7 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct ProjectFileData {
 	pub name: String,
-	// if 'keybind' is 'None', an automatically determined keybinding will be used
+	// If `keybind` is `None`, an automatically determined keybinding will be used.
 	pub keybind: Option<String>,
 	pub project_data_file: ProjectDataFile,
 }
@@ -37,9 +37,8 @@ impl ProjectData {
 		};
 
 		if let Some(project_dir) = &self.command.working_dir {
-			// NOTE: if the user gives the project directory higher permsission
-			//       or tmpfs/symlinks it, 'add_path' returns an error,
-			//       but it should be ignored
+			// NOTE: If the user gives the project directory higher permsission or
+			// tmpfs/symlinks it, `add_path` returns an error, which should be ignored
 			_ = sandbox_params.fs_tree.add_path(
 				project_dir,
 				crate::sandbox::VirtualFSEntryType::ReadWrite,

@@ -12,9 +12,6 @@ pub fn run(
 	let bookmarks = parse_ctx.get_bookmarks()?;
 	let projects = parse_ctx.get_projects()?;
 
-	// stores all keybinds that are positive numbers
-	// This is used to find the first available numeric keybind for projects that
-	// don't provide a keybinding themselves.
 	let mut numeric_keybinds = Iterator::chain(bookmarks.iter(), projects.iter())
 		.filter_map(|data| data.keybind.clone())
 		.filter_map(parse_str_as_num)
@@ -60,7 +57,7 @@ pub fn run(
 		UiError::Other(err) => err,
 	})
 }
-// parse str as a positive number, disallowing a leading '+'
+// Parse str as a positive number, disallowing a leading '+'.
 fn parse_str_as_num(str: impl AsRef<str>) -> Option<u64> {
 	let str = str.as_ref();
 	if str.starts_with('+') {

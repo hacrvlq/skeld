@@ -24,8 +24,6 @@ pub use self::{
 
 type ModResult<T> = crate::GenericResult<T>;
 
-// NOTE: FileDatabase is required for displaying errors,
-//       therefore it is stored globally
 pub struct ParseContext<'a> {
 	pub file_database: &'a mut FileDatabase,
 }
@@ -85,7 +83,7 @@ impl ParseContext<'_> {
 		Ok(project_data)
 	}
 
-	// get projects from all '<SKELD-DATA>/subdir' directories
+	// Get projects from all `<SKELD-DATA>/subdir` directories.
 	fn get_projects_from_data_subdir(
 		&mut self,
 		subdir: impl AsRef<Path>,
@@ -140,7 +138,6 @@ impl ParseContext<'_> {
 		let mut keybind = StringOption::new_with_canonicalization("keybind", |str| {
 			assure_printable_ascii(str, "keybind")
 		});
-		// mock the project data option, so there is not an "unknown option" error
 		let mut project_data = MockOption::new("project");
 
 		let relevant_manpage = "skeld(1)";
@@ -235,7 +232,7 @@ fn get_toml_files_from_dir(dir: impl AsRef<Path>) -> ModResult<Vec<PathBuf>> {
 		entries.push(entry_path);
 	}
 
-	// consistent order
+	// Assure a consistent order.
 	entries.sort();
 	Ok(entries)
 }

@@ -17,6 +17,7 @@ use nix::{
 pub struct Command {
 	pub program: String,
 	pub args: Vec<String>,
+	// Must be an absolute path.
 	pub working_dir: Option<PathBuf>,
 	pub detach: bool,
 }
@@ -56,8 +57,8 @@ pub fn forward_child_exit_status(status: ExitStatus) -> ExitCode {
 	}
 }
 
-// detach this process from the controlling terminal and
-// redirect stdout/stderr to a logfile
+// Detach this process from the controlling terminal and redirect stdout/stderr
+// to a logfile.
 pub fn detach_from_tty() -> Result<(), String> {
 	let logdir = crate::dirs::get_skeld_state_dir()
 		.map_err(|err| format!("Failed to determine the skeld state directory:\n  {err}"))?;
@@ -73,7 +74,7 @@ pub fn detach_from_tty() -> Result<(), String> {
 	let (logfile_path, logfile) =
 		create_logfile(logdir).map_err(|err| format!("Failed to create a logfile: {err}"))?;
 
-	// SAFETY: program isn't multithreaded
+	// SAFETY: This program isn't multithreaded.
 	match unsafe { unistd::fork() }.unwrap() {
 		unistd::ForkResult::Parent { child } => match wait::waitpid(child, None).unwrap() {
 			WaitStatus::Exited(_, code) => std::process::exit(code),
@@ -93,12 +94,12 @@ pub fn detach_from_tty() -> Result<(), String> {
 	unistd::close(0).unwrap();
 	unistd::dup2_stdout(&logfile).unwrap();
 	unistd::dup2_stderr(&logfile).unwrap();
-	// leak the file descriptor
+	// Leak the file descriptor.
 	let _ = logfile.into_raw_fd();
 
 	unistd::setsid().unwrap();
 
-	// SAFETY: program isn't multithreaded
+	// SAFETY: This program isn't multithreaded.
 	match unsafe { unistd::fork() }.unwrap() {
 		unistd::ForkResult::Parent { .. } => std::process::exit(0),
 		unistd::ForkResult::Child => (),
@@ -106,7 +107,7 @@ pub fn detach_from_tty() -> Result<(), String> {
 
 	Ok(())
 }
-// remove logfiles older than 24h, errors are silently ignored
+// Remove logfiles older than 24h, errors are silently ignored.
 fn remove_old_logfiles(logdir: impl AsRef<Path>) {
 	let Ok(dir_iter) = fs::read_dir(logdir) else {
 		return;
@@ -122,13 +123,12 @@ fn remove_old_logfiles(logdir: impl AsRef<Path>) {
 				.and_then(|metadata| metadata.accessed().ok())
 				.and_then(|mtime| mtime.elapsed().ok());
 			let Some(elapsed_time) = elapsed_time else {
-				// remove the file in case of an error
+				// Remove the file in case of an error.
 				return false;
 			};
 			elapsed_time > Duration::from_secs(60 * 60 * 24)
 		})
 		.for_each(|dir_entry| {
-			// NOTE: directories are not removed
 			let _ = fs::remove_file(dir_entry.path());
 		});
 }

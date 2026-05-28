@@ -125,7 +125,6 @@ fn get_project_name_from_path(path: &Path) -> Option<&str> {
 
 	Some(project_name)
 }
-// use known path prefixes like '~'
 fn normalize_path_prefix(path: impl AsRef<Path>) -> PathBuf {
 	let path = path.as_ref();
 
@@ -180,8 +179,8 @@ fn launch_editor(file: impl AsRef<Path>) -> ModResult<()> {
 	let editor_output = Command::new("sh")
 		.arg("-c")
 		.arg(&editor_cmd)
-		// NOTE: This won't work if the editor uses stderr to display its tui,
-		//       but that should be unlikely.
+		// NOTE: This won't work if the editor uses stderr to display its tui, but that
+		// should be unlikely.
 		.stderr(process::Stdio::piped())
 		.spawn()
 		.expect("failed to execute `sh`")
@@ -206,7 +205,7 @@ fn launch_editor(file: impl AsRef<Path>) -> ModResult<()> {
 
 	Ok(())
 }
-// inspired by git's process of determining the editor
+// Inspired by git's process of determining the editor.
 fn get_editor() -> OsString {
 	let terminal_is_dumb = env::var_os("TERM").is_none_or(|val| val == "dumb");
 
@@ -225,7 +224,7 @@ fn get_editor() -> OsString {
 		"vi".into()
 	}
 }
-// escape string for POSIX-compliant shells
+// Escape `str` for POSIX-compliant shells.
 fn shell_string_escape(str: &OsStr) -> OsString {
 	let mut escaped_bytes = Vec::new();
 	escaped_bytes.push(b'"');
