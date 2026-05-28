@@ -27,45 +27,48 @@ pub enum EnvVarWhitelist {
 	All,
 	List(Vec<OsString>),
 }
-impl SandboxParameters {
-	pub fn run_cmd(&self, command: Command) -> Result<ExitCode, Box<dyn Error>> {
-		let mut bwrap_command = OsCommand::new("bwrap");
+pub fn run_sandboxed(
+	command: Command,
+	sandbox: &SandboxParameters,
+) -> Result<ExitCode, Box<dyn Error>> {
+	let mut bwrap_command = OsCommand::new("bwrap");
 
-		let args_data = self.get_bwrap_args(&command)?.join(OsStr::new("\0"));
-		let (pipe_reader, pipe_writer) = unistd::pipe().unwrap();
-		io::PipeWriter::from(pipe_writer)
-			.write_all(args_data.as_encoded_bytes())
-			.unwrap();
-		bwrap_command.args(["--args", &pipe_reader.into_raw_fd().to_string()]);
+	let args_data = sandbox.get_bwrap_args(&command)?.join(OsStr::new("\0"));
+	let (pipe_reader, pipe_writer) = unistd::pipe().unwrap();
+	io::PipeWriter::from(pipe_writer)
+		.write_all(args_data.as_encoded_bytes())
+		.unwrap();
+	bwrap_command.args(["--args", &pipe_reader.into_raw_fd().to_string()]);
 
-		bwrap_command.arg("--");
-		bwrap_command.arg(command.program);
-		bwrap_command.args(command.args);
+	bwrap_command.arg("--");
+	bwrap_command.arg(command.program);
+	bwrap_command.args(command.args);
 
-		if command.detach {
-			command::detach_from_tty()?;
-		}
-
-		let mut bwrap_process = bwrap_command.spawn().map_err(|err| {
-			let mut error_string = format!("Failed to execute bwrap: {err}");
-			if err.kind() == io::ErrorKind::NotFound {
-				error_string.push_str(concat!(
-					"\n  NOTE: This may be because Bubblewrap is not installed.",
-					"\n        Install Bubblewrap (https://github.com/containers/bubblewrap)",
-					"\n        and make sure `bwrap` is available in `$PATH`.",
-				));
-			}
-			error_string
-		})?;
-
-		if command.detach {
-			Ok(ExitCode::SUCCESS)
-		} else {
-			let sandbox_status = bwrap_process.wait().unwrap();
-			Ok(command::forward_child_exit_status(sandbox_status))
-		}
+	if command.detach {
+		command::detach_from_tty()?;
 	}
 
+	let mut bwrap_process = bwrap_command.spawn().map_err(|err| {
+		let mut error_string = format!("Failed to execute bwrap: {err}");
+		if err.kind() == io::ErrorKind::NotFound {
+			error_string.push_str(concat!(
+				"\n  NOTE: This may be because Bubblewrap is not installed.",
+				"\n        Install Bubblewrap (https://github.com/containers/bubblewrap)",
+				"\n        and make sure `bwrap` is available in `$PATH`.",
+			));
+		}
+		error_string
+	})?;
+
+	if command.detach {
+		Ok(ExitCode::SUCCESS)
+	} else {
+		let sandbox_status = bwrap_process.wait().unwrap();
+		Ok(command::forward_child_exit_status(sandbox_status))
+	}
+}
+
+impl SandboxParameters {
 	fn get_bwrap_args(&self, command: &Command) -> Result<Vec<OsString>, Box<dyn Error>> {
 		let mut bwrap_args: Vec<OsString> = Vec::new();
 

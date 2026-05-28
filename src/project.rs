@@ -3,7 +3,7 @@ use std::{error::Error, path::PathBuf, process::ExitCode};
 use crate::{
 	command::Command,
 	parsing::{ParseContext, RawProjectData},
-	sandbox::SandboxParameters,
+	sandbox::{self, SandboxParameters},
 };
 
 #[derive(Clone, Debug)]
@@ -39,12 +39,10 @@ impl ProjectData {
 		if let Some(project_dir) = &self.command.working_dir {
 			// NOTE: If the user gives the project directory higher permsission or
 			// tmpfs/symlinks it, `add_path` returns an error, which should be ignored
-			_ = sandbox_params.fs_tree.add_path(
-				project_dir,
-				crate::sandbox::VirtualFSEntryType::ReadWrite,
-				(),
-			);
+			_ = sandbox_params
+				.fs_tree
+				.add_path(project_dir, sandbox::VirtualFSEntryType::ReadWrite, ());
 		}
-		sandbox_params.run_cmd(self.command)
+		sandbox::run_sandboxed(self.command, &sandbox_params)
 	}
 }
