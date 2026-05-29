@@ -20,7 +20,7 @@ strip = true
 crossterm = { version = "0.29", default-features = false, features = ["bracketed-paste", "events"] }
 libc = "0.2"
 seccompiler = "0.5"
-nix = { version = "0.30", features = ["process", "fs"] }
+nix = { version = "0.30", features = ["process", "fs", "term"] }
 toml-span = { version = "0.6", features = ["reporting"] }
 codespan-reporting = "0.13"
 derive_more = { version = "2.0", features = ["from", "display", "debug"] }

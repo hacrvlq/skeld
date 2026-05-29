@@ -11,9 +11,10 @@ mod ui_subcommand;
 #[path = "utils/vec_ext.rs"]
 mod vec_ext;
 
-use std::{path::PathBuf, process::ExitCode};
+use std::{io::Read as _, path::PathBuf, process::ExitCode};
 
 use clap::Parser as _;
+use nix::{sys::termios, unistd};
 
 use crate::parsing::ParseContext;
 
@@ -54,6 +55,12 @@ fn main() -> ExitCode {
 		Ok(code) => code,
 		Err(err) => {
 			err.print(&file_database);
+
+			if is_session_leader_of_tty() {
+				eprint!("Press any key to continue...");
+				wait_on_stdin_input();
+			}
+
 			ExitCode::FAILURE
 		}
 	}
@@ -71,4 +78,26 @@ fn try_main(file_database: &mut parsing::FileDatabase) -> GenericResult<ExitCode
 			Ok(ExitCode::SUCCESS)
 		}
 	}
+}
+
+fn is_session_leader_of_tty() -> bool {
+	let pid = unistd::getpid();
+	let tty_sid = termios::tcgetsid(std::io::stderr());
+	tty_sid == Ok(pid)
+}
+fn wait_on_stdin_input() {
+	let mut fd = std::io::stdin();
+
+	let Ok(mut tios) = termios::tcgetattr(&fd) else {
+		return;
+	};
+
+	tios.local_flags.remove(termios::LocalFlags::ICANON);
+	tios.local_flags.remove(termios::LocalFlags::ECHO);
+	match termios::tcsetattr(&fd, termios::SetArg::TCSANOW, &tios) {
+		Ok(()) => (),
+		Err(_) => return,
+	}
+
+	let _ = fd.read_exact(&mut [0]);
 }
