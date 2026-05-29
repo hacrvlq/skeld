@@ -30,7 +30,7 @@ impl GenericError {
 		};
 		let writer = termcolor::StandardStream::stderr(color_choice);
 		let config = term::Config::default();
-		let writer_error = term::emit_to_io_write(&mut writer.lock(), &config, files, diag);
+		let writer_error = term::emit_to_write_style(&mut writer.lock(), &config, files, diag);
 		if writer_error.is_err() {
 			eprintln!(
 				"Failed to pretty-print error, here is the raw version:\nerror: {}",
