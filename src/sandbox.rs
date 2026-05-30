@@ -1,5 +1,6 @@
 use std::{
 	cmp::Ordering,
+	collections::HashSet,
 	env,
 	error::Error,
 	ffi::{OsStr, OsString},
@@ -25,7 +26,7 @@ pub struct SandboxParameters {
 #[derive(Clone, Debug)]
 pub enum EnvVarWhitelist {
 	All,
-	List(Vec<OsString>),
+	List(HashSet<OsString>),
 }
 pub fn run_sandboxed(
 	command: Command,
@@ -93,7 +94,9 @@ impl SandboxParameters {
 			EnvVarWhitelist::All => (),
 			EnvVarWhitelist::List(list) => {
 				bwrap_args.push("--clearenv".into());
-				bwrap_args.extend(get_envvar_whitelist_args(list));
+				bwrap_args.extend(get_envvar_whitelist_args(
+					list.iter().map(OsString::as_os_str),
+				));
 			}
 		}
 
@@ -147,7 +150,9 @@ fn get_virtual_fs_args_rec(
 
 	Ok(args)
 }
-fn get_envvar_whitelist_args(envvar_whitelists: &[OsString]) -> Vec<OsString> {
+fn get_envvar_whitelist_args<'a>(
+	envvar_whitelists: impl Iterator<Item = &'a OsStr>,
+) -> Vec<OsString> {
 	let mut args = Vec::new();
 	for envvar in envvar_whitelists {
 		let Some(var_value) = env::var_os(envvar) else {
